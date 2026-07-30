@@ -54,6 +54,12 @@ AI_SCORE_THRESHOLD = 55
 AI_MAX_VACANCIES = 6
 REPORT_MIN_SCORE = 40
 
+# Gibrid vakansiya-filtr (keyword + AI). Sinov muddati: 2026-07-30 dan.
+# Batafsil: TAKLIFLAR.md
+AI_FILTER_ENABLED = True      # shubhali e'lonlarni Haiku bilan tasniflash
+AI_FILTER_BATCH_SIZE = 15     # bitta API so'rovga necha e'lon sig'adi
+AI_FILTER_MAX_POSTS = 60      # kuniga AI'ga yuboriladigan maksimal e'lon
+
 # ============ MAXFIY KALITLAR (.env yoki GitHub Secrets) ============
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
 TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", "")

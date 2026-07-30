@@ -8,8 +8,9 @@ __pycache__/
 *.pyd
 .Python
 
-# Telethon session files — agent.session is committed for Railway deployment
-# *.session
+# Telethon session files — akkaunt kaliti, HECH QACHON commit qilinmasin
+# (GitHub Actions TG_SESSION_STRING secret'dan foydalanadi)
+*.session
 *.session-journal
 
 # Database
@@ -30,3 +31,7 @@ env/
 # OS
 .DS_Store
 Thumbs.db
+
+# Shaxsiy eslatma/reja md fayllari repoga chiqmasin (README bundan mustasno)
+*.md
+!README.md

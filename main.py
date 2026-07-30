@@ -10,7 +10,7 @@ import config
 import storage
 import reporter
 from collectors import hh, olx, tg_channels
-from scoring import keyword_scorer, ai_scorer
+from scoring import keyword_scorer, ai_scorer, vacancy_filter, ai_filter
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(name)s] %(message)s")
 log = logging.getLogger("main")
@@ -24,14 +24,41 @@ async def run():
     vacancies += await tg_channels.collect()
     log.info("Jami yig'ildi: %d", len(vacancies))
 
-    # 2. YANGILARNI AJRATISH
+    # 2. FAQAT ISH O'RINLARI — gibrid filtr (keyword + AI, qarang: TAKLIFLAR.md)
+    real_vacancies, uncertain = [], []
+    for v in vacancies:
+        if v["source"] == "hh.uz":  # hh API faqat vakansiya qaytaradi
+            real_vacancies.append(v)
+            continue
+        verdict, reason = vacancy_filter.keyword_check(f"{v['title']} {v['text']}")
+        if verdict == "vacancy":
+            real_vacancies.append(v)
+        elif verdict == "seeker":
+            log.info("Rad etildi (%s): %s", reason, v["title"][:60])
+        else:
+            uncertain.append(v)
+
+    if uncertain:
+        log.info("Shubhali e'lonlar AI'ga yuborilmoqda: %d ta", len(uncertain))
+        ai_verdicts = ai_filter.classify(uncertain)
+        for i, v in enumerate(uncertain):
+            # AI javob bermagan indekslar o'tkazib yuboriladi (fail-open)
+            if ai_verdicts.get(i, True):
+                real_vacancies.append(v)
+            else:
+                log.info("Rad etildi (AI: ish o'rni emas): %s", v["title"][:60])
+
+    log.info("Ish o'rni emas deb rad etildi: %d", len(vacancies) - len(real_vacancies))
+    vacancies = real_vacancies
+
+    # 3. YANGILARNI AJRATISH
     new = storage.filter_new(vacancies)
     log.info("Yangi: %d", len(new))
     if not new:
         reporter.send("📊 Bugun yangi mos vakansiya topilmadi.")
         return
 
-    # 3. KEYWORD SCORING
+    # 4. KEYWORD SCORING
     for v in new:
         v["score"], v["score_reasons"] = keyword_scorer.score(v)
     relevant = sorted(
@@ -39,7 +66,7 @@ async def run():
         key=lambda v: -v["score"],
     )
 
-    # 4. AI SCORING — faqat eng yaxshilari (xarajat nazorati)
+    # 5. AI SCORING — faqat eng yaxshilari (xarajat nazorati)
     for v in relevant[:config.AI_MAX_VACANCIES]:
         if v["score"] >= config.AI_SCORE_THRESHOLD:
             v["ai"] = ai_scorer.analyze(v)
@@ -47,7 +74,7 @@ async def run():
     # AI ball bo'lsa, saralashda ustunlik beramiz
     relevant.sort(key=lambda v: -(v["ai"]["score"] if v.get("ai") else v["score"]))
 
-    # 5. SAQLASH + HISOBOT
+    # 6. SAQLASH + HISOBOT
     storage.save(new)
     stats = storage.skill_stats(new)
     reporter.send(reporter.build_report(relevant, stats, len(new)))
