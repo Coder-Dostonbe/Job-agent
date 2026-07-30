@@ -34,6 +34,7 @@ SEARCH_QUERIES = ["python", "django", "backend"]
 # hh.uz sozlamalari
 HH_AREA_ID = "97"  # Uzbekistan
 HH_HOST = "hh.uz"
+HH_API_BASE = "https://api.hh.uz"  # hh.uz'ning o'z API domeni (dev.hh.uz)
 
 # Kuzatiladigan Telegram ish kanallari (username, @siz)
 TG_CHANNELS = [
@@ -67,7 +68,7 @@ TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", "")
 TG_API_ID = os.getenv("TG_API_ID", "")
 TG_API_HASH = os.getenv("TG_API_HASH", "")
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
-# hh.ru ilova tokeni — /vacancies qidiruvi 2025 dan beri avtorizatsiyasiz
+# hh.uz ilova tokeni — /vacancies qidiruvi 2025 dan beri avtorizatsiyasiz
 # ishlamaydi. Olish uchun: python get_hh_token.py
 HH_TOKEN = os.getenv("HH_TOKEN", "")
 DB_PATH = os.getenv("DB_PATH", "vacancies.db")

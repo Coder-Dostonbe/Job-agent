@@ -1,11 +1,12 @@
-"""Fetch an hh.ru application access token (one-time setup).
+"""Fetch an hh.uz application access token (one-time setup).
 
-Since 2025 the hh.ru vacancy search endpoint rejects unauthenticated
-requests with 403. An application token fixes that. It does not expire —
-generate it once and store it.
+Since 2025 the vacancy search endpoint rejects unauthenticated requests
+with 403. An application token fixes that. It does not expire — generate
+it once and store it.
 
 Before running:
-  1. Register an application at https://dev.hh.ru/admin
+  1. Register an application at https://dev.hh.uz/admin
+     (hh.uz has its own developer portal, separate from dev.hh.ru)
   2. Copy its Client ID and Client Secret into .env as
      HH_CLIENT_ID and HH_CLIENT_SECRET
 
@@ -25,16 +26,18 @@ except ImportError:
 
 import requests
 
+import config
+
 CLIENT_ID = os.getenv("HH_CLIENT_ID", "")
 CLIENT_SECRET = os.getenv("HH_CLIENT_SECRET", "")
 
 if not CLIENT_ID or not CLIENT_SECRET:
     print("ERROR: set HH_CLIENT_ID and HH_CLIENT_SECRET in .env first.")
-    print("Register an app at https://dev.hh.ru/admin to get them.")
+    print("Register an app at https://dev.hh.uz/admin to get them.")
     raise SystemExit(1)
 
 resp = requests.post(
-    "https://api.hh.ru/token",
+    f"{config.HH_API_BASE}/token",
     data={
         "grant_type": "client_credentials",
         "client_id": CLIENT_ID,

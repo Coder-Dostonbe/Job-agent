@@ -44,15 +44,18 @@ cp .env.example .env    # then fill it in
 | `TELEGRAM_CHAT_ID` | Message your bot, then open `https://api.telegram.org/bot<TOKEN>/getUpdates` and read `chat.id` |
 | `TG_API_ID`, `TG_API_HASH` | [my.telegram.org](https://my.telegram.org) → API development tools |
 | `TG_SESSION_STRING` | See [Telegram session string](#telegram-session-string) |
-| `HH_TOKEN` | See [hh.ru application token](#hhru-application-token) |
+| `HH_TOKEN` | See [hh.uz application token](#hhuz-application-token) |
 | `ANTHROPIC_API_KEY` | [console.anthropic.com](https://console.anthropic.com) — optional |
 
-### hh.ru application token
+### hh.uz application token
 
-Since 2025 `GET /vacancies` on the hh.ru API rejects unauthenticated requests
-with `403 forbidden`, so an application token is required.
+Since 2025 `GET /vacancies` rejects unauthenticated requests with
+`403 forbidden`, so an application token is required.
 
-1. Register an application at [dev.hh.ru/admin](https://dev.hh.ru/admin).
+1. Register an application at [dev.hh.uz/admin](https://dev.hh.uz/admin).
+   hh.uz has its own developer portal and its own API host
+   (`https://api.hh.uz`, set as `HH_API_BASE` in `config.py`) — credentials
+   from `dev.hh.ru` belong to a different site.
 2. Put its Client ID and Client Secret in `.env` as `HH_CLIENT_ID` and
    `HH_CLIENT_SECRET`.
 3. Run `python get_hh_token.py` and store the printed token as `HH_TOKEN`.
@@ -141,8 +144,8 @@ config.py                   profile, sources, limits
 storage.py                  SQLite history + URL dedupe
 reporter.py                 Telegram delivery
 create_session_qr.py        one-time Telethon session generator
-get_hh_token.py             one-time hh.ru application token fetcher
-collectors/  hh.py          hh.ru API
+get_hh_token.py             one-time hh.uz application token fetcher
+collectors/  hh.py          hh.uz API
              olx.py         OLX HTML scraping
              tg_channels.py Telethon channel reader
 scoring/     vacancy_filter.py  stage 1 — keyword rules

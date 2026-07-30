@@ -1,6 +1,6 @@
 """hh.uz dan vakansiyalarni rasmiy API orqali olish.
 
-hh.ru 2025 yilda /vacancies qidiruvini avtorizatsiyasiz yopdi — tokensiz
+2025 yildan beri /vacancies qidiruvi avtorizatsiyasiz ishlamaydi — tokensiz
 403 forbidden qaytadi. Ilova tokenini olish uchun: python get_hh_token.py
 """
 import logging
@@ -9,7 +9,7 @@ import requests
 import config
 
 log = logging.getLogger("hh")
-API_URL = "https://api.hh.ru/vacancies"
+API_URL = f"{config.HH_API_BASE}/vacancies"
 
 
 def _headers() -> dict:
