@@ -1,4 +1,8 @@
-"""hh.uz dan vakansiyalarni rasmiy API orqali olish (auth kerak emas)."""
+"""hh.uz dan vakansiyalarni rasmiy API orqali olish.
+
+hh.ru 2025 yilda /vacancies qidiruvini avtorizatsiyasiz yopdi — tokensiz
+403 forbidden qaytadi. Ilova tokenini olish uchun: python get_hh_token.py
+"""
 import logging
 import requests
 
@@ -6,7 +10,13 @@ import config
 
 log = logging.getLogger("hh")
 API_URL = "https://api.hh.ru/vacancies"
-HEADERS = {"User-Agent": "job-agent/1.0 (job search assistant)"}
+
+
+def _headers() -> dict:
+    h = {"User-Agent": "job-agent/1.0 (job search assistant)"}
+    if config.HH_TOKEN:
+        h["Authorization"] = f"Bearer {config.HH_TOKEN}"
+    return h
 
 
 def _clean(item: dict) -> dict:
@@ -46,9 +56,16 @@ def fetch(query: str) -> list[dict]:
                     "page": page,
                     "period": 2,  # oxirgi 2 kun
                 },
-                headers=HEADERS,
+                headers=_headers(),
                 timeout=15,
             )
+            if resp.status_code == 403:
+                log.error(
+                    "hh 403: %s. Ilova tokeni kerak — 'python get_hh_token.py'",
+                    "HH_TOKEN o'rnatilmagan" if not config.HH_TOKEN
+                    else "HH_TOKEN yaroqsiz yoki bekor qilingan",
+                )
+                break
             resp.raise_for_status()
             data = resp.json()
         except Exception as e:
@@ -61,6 +78,12 @@ def fetch(query: str) -> list[dict]:
 
 
 def collect() -> list[dict]:
+    if not config.HH_TOKEN:
+        log.warning(
+            "HH_TOKEN yo'q — hh.uz o'tkazib yuborildi. "
+            "Token olish: python get_hh_token.py"
+        )
+        return []
     all_items = []
     for q in config.SEARCH_QUERIES:
         items = fetch(q)

@@ -43,8 +43,22 @@ cp .env.example .env    # then fill it in
 | `TELEGRAM_BOT_TOKEN` | Create a bot with [@BotFather](https://t.me/BotFather) |
 | `TELEGRAM_CHAT_ID` | Message your bot, then open `https://api.telegram.org/bot<TOKEN>/getUpdates` and read `chat.id` |
 | `TG_API_ID`, `TG_API_HASH` | [my.telegram.org](https://my.telegram.org) → API development tools |
-| `TG_SESSION_STRING` | See below |
+| `TG_SESSION_STRING` | See [Telegram session string](#telegram-session-string) |
+| `HH_TOKEN` | See [hh.ru application token](#hhru-application-token) |
 | `ANTHROPIC_API_KEY` | [console.anthropic.com](https://console.anthropic.com) — optional |
+
+### hh.ru application token
+
+Since 2025 `GET /vacancies` on the hh.ru API rejects unauthenticated requests
+with `403 forbidden`, so an application token is required.
+
+1. Register an application at [dev.hh.ru/admin](https://dev.hh.ru/admin).
+2. Put its Client ID and Client Secret in `.env` as `HH_CLIENT_ID` and
+   `HH_CLIENT_SECRET`.
+3. Run `python get_hh_token.py` and store the printed token as `HH_TOKEN`.
+
+The token does not expire. Requesting a new one revokes the previous token.
+Without `HH_TOKEN` the agent skips hh.uz and keeps using the other sources.
 
 ### Telegram session string
 
@@ -97,8 +111,8 @@ and can also be triggered by hand from the Actions tab.
 
 1. Push the repo to GitHub.
 2. **Settings → Secrets and variables → Actions** → add `TELEGRAM_BOT_TOKEN`,
-   `TELEGRAM_CHAT_ID`, `TG_API_ID`, `TG_API_HASH`, `TG_SESSION_STRING` and
-   `ANTHROPIC_API_KEY`.
+   `TELEGRAM_CHAT_ID`, `TG_API_ID`, `TG_API_HASH`, `TG_SESSION_STRING`,
+   `HH_TOKEN` and `ANTHROPIC_API_KEY`.
 3. Adjust the `cron:` line if you want a different time.
 
 ## Example report
@@ -127,6 +141,7 @@ config.py                   profile, sources, limits
 storage.py                  SQLite history + URL dedupe
 reporter.py                 Telegram delivery
 create_session_qr.py        one-time Telethon session generator
+get_hh_token.py             one-time hh.ru application token fetcher
 collectors/  hh.py          hh.ru API
              olx.py         OLX HTML scraping
              tg_channels.py Telethon channel reader
@@ -139,6 +154,7 @@ scoring/     vacancy_filter.py  stage 1 — keyword rules
 ## Notes
 
 - `*.session` files and `.env` are gitignored. Keep them that way.
-- hh.uz may return `403` from datacenter IPs; the other sources keep working.
+- If a source fails (network, rate limit, a channel that no longer exists) the
+  agent logs it and carries on with the rest.
 - The SQLite file is not persisted between GitHub Actions runs yet, so a
   scheduled run can re-report a vacancy it already sent.
