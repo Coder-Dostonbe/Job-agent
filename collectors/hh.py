@@ -120,9 +120,14 @@ def fetch(query: str) -> list[dict]:
 
 
 def _description(url: str) -> str | None:
-    """Vakansiya tavsifi; so'rov muvaffaqiyatsiz bo'lsa None."""
+    """Vakansiya tavsifi; so'rov muvaffaqiyatsiz bo'lsa None.
+
+    Mobil host orqali — desktop hh.uz/vacancy/<id> GitHub Actions IP'sidan
+    403 qaytaradi, qidiruv sahifasi esa ishlayveradi.
+    """
     try:
-        resp = _get(url, headers={"Referer": SEARCH_URL})
+        resp = _get(url.replace("https://hh.uz/", "https://m.hh.uz/"),
+                    headers={"Referer": SEARCH_URL})
     except Exception as e:
         log.warning("Tavsif yuklanmadi (%s): %s", url, e)
         return None
