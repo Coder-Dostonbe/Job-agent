@@ -14,6 +14,7 @@ import html
 import json
 import logging
 import re
+import time
 
 import requests
 from bs4 import BeautifulSoup
@@ -28,8 +29,22 @@ HEADERS = {
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
         "(KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
     ),
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
     "Accept-Language": "ru,en;q=0.9",
 }
+
+# Bitta sessiya — cookie'lar saqlanadi. Cookie'siz va tez ketma-ket so'rovlarda
+# hh.uz ikkinchi so'rovdanoq 403 qaytaradi (GitHub Actions IP'sida shunday bo'ldi).
+_session = requests.Session()
+_session.headers.update(HEADERS)
+
+
+def _get(url: str, **kwargs) -> requests.Response:
+    """Sekinlashtirilgan so'rov — hh.uz bot himoyasiga tushmaslik uchun."""
+    time.sleep(config.HH_REQUEST_DELAY)
+    resp = _session.get(url, timeout=20, **kwargs)
+    resp.raise_for_status()
+    return resp
 STATE_RE = re.compile(
     r'<template[^>]*id="HH-Lux-InitialState"[^>]*>(.*?)</template>', re.S
 )
@@ -81,7 +96,7 @@ def fetch(query: str) -> list[dict]:
     results, page = [], 0
     while True:
         try:
-            resp = requests.get(
+            resp = _get(
                 SEARCH_URL,
                 params={
                     "text": query,
@@ -89,10 +104,7 @@ def fetch(query: str) -> list[dict]:
                     "search_period": 2,  # oxirgi 2 kun
                     "page": page,
                 },
-                headers=HEADERS,
-                timeout=20,
             )
-            resp.raise_for_status()
             search = _state(resp.text)["vacancySearchResult"]
         except Exception as e:
             log.error("hh so'rovida xato (%s, page %s): %s", query, page, e)
@@ -107,18 +119,17 @@ def fetch(query: str) -> list[dict]:
     return results
 
 
-def _description(url: str) -> str:
-    """Vakansiya sahifasidan to'liq tavsifni oladi."""
+def _description(url: str) -> str | None:
+    """Vakansiya tavsifi; so'rov muvaffaqiyatsiz bo'lsa None."""
     try:
-        resp = requests.get(url, headers=HEADERS, timeout=20)
-        resp.raise_for_status()
-        block = BeautifulSoup(resp.text, "html.parser").select_one(
-            "[data-qa=vacancy-description]"
-        )
-        return block.get_text(" ", strip=True)[:3000] if block else ""
+        resp = _get(url, headers={"Referer": SEARCH_URL})
     except Exception as e:
         log.warning("Tavsif yuklanmadi (%s): %s", url, e)
-        return ""
+        return None
+    block = BeautifulSoup(resp.text, "html.parser").select_one(
+        "[data-qa=vacancy-description]"
+    )
+    return block.get_text(" ", strip=True)[:3000] if block else ""
 
 
 def _fill_descriptions(vacancies: list[dict]) -> None:
@@ -129,8 +140,18 @@ def _fill_descriptions(vacancies: list[dict]) -> None:
             "Tavsif limiti: %d ta vakansiyadan %d tasi to'liq yuklanadi",
             len(vacancies), len(capped),
         )
+    failures = 0
     for v in capped:
-        v["text"] = _description(v["url"])
+        text = _description(v["url"])
+        if text is None:
+            # Ketma-ket xatolar — bizni bloklashgan, davom etish behuda
+            failures += 1
+            if failures >= 3:
+                log.warning("Tavsif yuklash to'xtatildi (%d marta xato)", failures)
+                return
+            continue
+        failures = 0
+        v["text"] = text
 
 
 def collect() -> list[dict]:

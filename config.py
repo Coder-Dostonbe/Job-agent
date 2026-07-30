@@ -33,7 +33,8 @@ SEARCH_QUERIES = ["python", "django", "backend"]
 
 # hh.uz sozlamalari
 HH_AREA_ID = "97"  # Uzbekistan
-HH_DESC_LIMIT = 40  # nechta vakansiyaning to'liq matni yuklansin (har biri +1 so'rov)
+HH_DESC_LIMIT = 25      # nechta vakansiyaning to'liq matni yuklansin (har biri +1 so'rov)
+HH_REQUEST_DELAY = 2.0  # so'rovlar orasidagi pauza, soniya (bot himoyasi uchun)
 
 # Kuzatiladigan Telegram ish kanallari (username, @siz)
 TG_CHANNELS = [
