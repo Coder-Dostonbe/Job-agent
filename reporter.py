@@ -15,11 +15,49 @@ VERDICT_EMOJI = {
 }
 
 
-def build_report(scored: list[dict], stats: dict, total_new: int) -> str:
-    lines = [f"📊 <b>Kunlik ish hisoboti</b>\n"
-             f"Yangi vakansiyalar: {total_new} ta, mos kelganlari: {len(scored)} ta\n"]
+def source_group(v: dict) -> str:
+    """Kvota uchun manba nomi. Telegram kanallari alohida emas, birga sanaladi
+    ("t.me/UstozShogird", "t.me/python_jobs_uz" → "telegram")."""
+    src = v.get("source", "")
+    return "telegram" if src.startswith("t.me/") else src
 
-    for i, v in enumerate(scored[:10], 1):
+
+def select(scored: list[dict]) -> list[dict]:
+    """Hisobotga tushadigan vakansiyalarni tanlaydi.
+
+    hh.uz kuniga ~90 ta e'lon beradi va tavsifi to'liq bo'lgani uchun ball
+    bo'yicha ham yuqori chiqadi — oddiy "eng yuqori N ta" ro'yxatda OLX va
+    Telegram umuman ko'rinmay qoladi. Shuning uchun avval har bir manbaga
+    kvota beriladi; kvota to'lmay qolgan joylar esa qolgan eng yaxshi
+    vakansiyalarga o'tadi. Umumiy chegara — REPORT_LIMIT.
+
+    `scored` ball bo'yicha saralangan bo'lishi kutiladi.
+    """
+    quota, rest, used = [], [], {}
+    for v in scored:
+        g = source_group(v)
+        if used.get(g, 0) < config.REPORT_SOURCE_QUOTA:
+            used[g] = used.get(g, 0) + 1
+            quota.append(v)
+        else:
+            rest.append(v)
+    picked = quota[: config.REPORT_LIMIT]
+    picked += rest[: config.REPORT_LIMIT - len(picked)]
+    picked.sort(key=lambda v: -(v["ai"]["score"] if v.get("ai") else v["score"]))
+    return picked
+
+
+def build_report(shown: list[dict], stats: dict, total_new: int,
+                 total_matched: int | None = None) -> str:
+    """`shown` — ro'yxatga tushadiganlar (select natijasi),
+    `total_matched` — umuman mos kelganlar soni (undan ko'pi ko'rsatilmaydi)."""
+    matched = len(shown) if total_matched is None else total_matched
+    header = f"Yangi vakansiyalar: {total_new} ta, mos kelganlari: {matched} ta"
+    if matched > len(shown):
+        header += f" (eng yaxshi {len(shown)} tasi)"
+    lines = [f"📊 <b>Kunlik ish hisoboti</b>\n{header}\n"]
+
+    for i, v in enumerate(shown, 1):
         ai = v.get("ai")
         emoji = VERDICT_EMOJI.get(ai["verdict"], "⚪") if ai else "⚪"
         lines.append(f"{emoji} <b>{i}. {escape(v['title'][:70])}</b>")

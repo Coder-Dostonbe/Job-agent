@@ -55,6 +55,14 @@ AI_SCORE_THRESHOLD = 55
 AI_MAX_VACANCIES = 6
 REPORT_MIN_SCORE = 40
 
+# Hisobot ro'yxati
+REPORT_LIMIT = 20         # hisobotdagi maksimal vakansiya soni
+REPORT_SOURCE_QUOTA = 7   # har bir manbaga kafolatlangan joy. hh.uz kuniga
+                          # ~90 ta e'lon beradi va to'liq tavsifi borligi uchun
+                          # ball bo'yicha ham ustun keladi — kvotasiz OLX va
+                          # Telegram ro'yxatga umuman tushmay qoladi.
+                          # Kvota to'lmasa, bo'sh joylar boshqa manbalarga o'tadi.
+
 # Gibrid vakansiya-filtr (keyword + AI). Sinov muddati: 2026-07-30 dan.
 # Batafsil: TAKLIFLAR.md
 AI_FILTER_ENABLED = True      # shubhali e'lonlarni Haiku bilan tasniflash
@@ -68,6 +76,10 @@ TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", "")
 TG_API_ID = os.getenv("TG_API_ID", "")
 TG_API_HASH = os.getenv("TG_API_HASH", "")
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
+# Vakansiyalar tarixi. DATABASE_URL bo'lsa PostgreSQL, aks holda lokal SQLite.
+# GitHub Actions har run'da toza mashina beradi — fayl saqlanmaydi, shuning
+# uchun jadval bo'yicha ishlaganda DATABASE_URL bo'lishi shart.
+DATABASE_URL = os.getenv("DATABASE_URL", "")
 DB_PATH = os.getenv("DB_PATH", "vacancies.db")
 # Telethon string session (GitHub Actions uchun — phone auth kerak emas)
 TG_SESSION_STRING = os.getenv("TG_SESSION_STRING", "")

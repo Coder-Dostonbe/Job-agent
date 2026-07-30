@@ -45,6 +45,7 @@ cp .env.example .env    # then fill it in
 | `TG_API_ID`, `TG_API_HASH` | [my.telegram.org](https://my.telegram.org) → API development tools |
 | `TG_SESSION_STRING` | See [Telegram session string](#telegram-session-string) |
 | `ANTHROPIC_API_KEY` | [console.anthropic.com](https://console.anthropic.com) — optional |
+| `DATABASE_URL` | Any hosted Postgres ([Neon](https://neon.tech), [Supabase](https://supabase.com), …) — see [History](#history) |
 
 hh.uz and OLX need no credentials.
 
@@ -81,8 +82,20 @@ runs — it just skips the Telegram sources.
 python main.py
 ```
 
-Vacancies already reported are remembered in `vacancies.db`, so you only ever
-see each one once.
+### History
+
+Every vacancy the agent has seen is remembered, so you are never shown the same
+one twice. Two backends:
+
+- **PostgreSQL** — used when `DATABASE_URL` is set. Required for scheduled runs:
+  a GitHub Actions runner is wiped after every job, so a file on disk cannot
+  survive to the next day.
+- **SQLite** (`vacancies.db`) — the fallback when `DATABASE_URL` is empty. Fine
+  for running locally; nothing to set up.
+
+The table is created on first use. If Postgres is unreachable the agent logs the
+error and falls back to SQLite rather than failing — you still get the report,
+but it may repeat vacancies until the connection is fixed.
 
 ## Configuration (`config.py`)
 
@@ -96,6 +109,8 @@ see each one once.
 | `TG_LOOKBACK_HOURS` | How far back to read each channel |
 | `OLX_URLS` | OLX search pages to scrape |
 | `REPORT_MIN_SCORE` | Minimum keyword score to appear in the report |
+| `REPORT_LIMIT` | Maximum vacancies in one report |
+| `REPORT_SOURCE_QUOTA` | Slots guaranteed to each source, so a high-volume source cannot crowd the others out. Unused slots go to whoever else scored best |
 | `AI_SCORE_THRESHOLD` / `AI_MAX_VACANCIES` | Cost control for deep AI analysis |
 | `AI_FILTER_ENABLED` / `AI_FILTER_BATCH_SIZE` / `AI_FILTER_MAX_POSTS` | Cost control for the vacancy filter |
 
@@ -107,7 +122,7 @@ and can also be triggered by hand from the Actions tab.
 1. Push the repo to GitHub.
 2. **Settings → Secrets and variables → Actions** → add `TELEGRAM_BOT_TOKEN`,
    `TELEGRAM_CHAT_ID`, `TG_API_ID`, `TG_API_HASH`, `TG_SESSION_STRING`,
-   and `ANTHROPIC_API_KEY`.
+   `DATABASE_URL`, and `ANTHROPIC_API_KEY`.
 3. Adjust the `cron:` line if you want a different time.
 
 ## Example report
@@ -150,5 +165,3 @@ scoring/     vacancy_filter.py  stage 1 — keyword rules
 - `*.session` files and `.env` are gitignored. Keep them that way.
 - If a source fails (network, rate limit, a channel that no longer exists) the
   agent logs it and carries on with the rest.
-- The SQLite file is not persisted between GitHub Actions runs yet, so a
-  scheduled run can re-report a vacancy it already sent.

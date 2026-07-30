@@ -73,18 +73,22 @@ async def run():
         key=lambda v: -v["score"],
     )
 
-    # 5. AI SCORING — faqat eng yaxshilari (xarajat nazorati)
-    for v in relevant[:config.AI_MAX_VACANCIES]:
+    # 5. TANLASH — har manbaga kvota, umumiy chegara REPORT_LIMIT
+    shown = reporter.select(relevant)
+    log.info("Hisobotga tanlandi: %d ta (mos kelganlar: %d)", len(shown), len(relevant))
+
+    # 6. AI SCORING — faqat hisobotga tushadiganlarning eng yaxshilari
+    for v in shown[:config.AI_MAX_VACANCIES]:
         if v["score"] >= config.AI_SCORE_THRESHOLD:
             v["ai"] = ai_scorer.analyze(v)
 
     # AI ball bo'lsa, saralashda ustunlik beramiz
-    relevant.sort(key=lambda v: -(v["ai"]["score"] if v.get("ai") else v["score"]))
+    shown.sort(key=lambda v: -(v["ai"]["score"] if v.get("ai") else v["score"]))
 
-    # 6. SAQLASH + HISOBOT
+    # 7. SAQLASH + HISOBOT
     storage.save(all_new)  # rad etilganlar ham — takror tekshirilmasin
     stats = storage.skill_stats(new)
-    reporter.send(reporter.build_report(relevant, stats, len(new)))
+    reporter.send(reporter.build_report(shown, stats, len(new), len(relevant)))
     log.info("Hisobot yuborildi ✅")
 
 
