@@ -33,8 +33,7 @@ SEARCH_QUERIES = ["python", "django", "backend"]
 
 # hh.uz sozlamalari
 HH_AREA_ID = "97"  # Uzbekistan
-HH_HOST = "hh.uz"
-HH_API_BASE = "https://api.hh.uz"  # hh.uz'ning o'z API domeni (dev.hh.uz)
+HH_DESC_LIMIT = 40  # nechta vakansiyaning to'liq matni yuklansin (har biri +1 so'rov)
 
 # Kuzatiladigan Telegram ish kanallari (username, @siz)
 TG_CHANNELS = [
@@ -68,9 +67,6 @@ TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", "")
 TG_API_ID = os.getenv("TG_API_ID", "")
 TG_API_HASH = os.getenv("TG_API_HASH", "")
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
-# hh.uz ilova tokeni — /vacancies qidiruvi 2025 dan beri avtorizatsiyasiz
-# ishlamaydi. Olish uchun: python get_hh_token.py
-HH_TOKEN = os.getenv("HH_TOKEN", "")
 DB_PATH = os.getenv("DB_PATH", "vacancies.db")
 # Telethon string session (GitHub Actions uchun — phone auth kerak emas)
 TG_SESSION_STRING = os.getenv("TG_SESSION_STRING", "")

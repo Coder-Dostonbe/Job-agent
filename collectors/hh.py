@@ -1,92 +1,145 @@
-"""hh.uz dan vakansiyalarni rasmiy API orqali olish.
+"""hh.uz dan vakansiyalarni yig'ish.
 
-2025 yildan beri /vacancies qidiruvi avtorizatsiyasiz ishlamaydi — tokensiz
-403 forbidden qaytadi. Ilova tokenini olish uchun: python get_hh_token.py
+Rasmiy API (api.hh.uz) endi ish izlovchilar uchun yopiq: /vacancies
+avtorizatsiyasiz 403 qaytaradi, ilova ro'yxatdan o'tkazish esa faqat
+ish beruvchilarga ochiq (hh 2025-yil 15-dekabrda soiskatel API'sini
+to'xtatgan). Shuning uchun oddiy qidiruv sahifasidan o'qiymiz.
+
+Sahifa ichida to'liq JSON holat bor (<template id="HH-Lux-InitialState">),
+shuning uchun HTML tuzilishiga bog'lanib qolmaymiz — undan tayyor
+ma'lumotni olamiz. Qisqacha tavsif JSON'da yo'q, shuning uchun eng mos
+vakansiyalarning to'liq matni alohida yuklanadi.
 """
+import html
+import json
 import logging
+import re
+
 import requests
+from bs4 import BeautifulSoup
 
 import config
 
 log = logging.getLogger("hh")
-API_URL = f"{config.HH_API_BASE}/vacancies"
+
+SEARCH_URL = "https://hh.uz/search/vacancy"
+HEADERS = {
+    "User-Agent": (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+        "(KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+    ),
+    "Accept-Language": "ru,en;q=0.9",
+}
+STATE_RE = re.compile(
+    r'<template[^>]*id="HH-Lux-InitialState"[^>]*>(.*?)</template>', re.S
+)
+EXPERIENCE_UZ = {
+    "noExperience": "tajriba talab qilinmaydi",
+    "between1And3": "1-3 yil",
+    "between3And6": "3-6 yil",
+    "moreThan6": "6 yildan ortiq",
+}
 
 
-def _headers() -> dict:
-    h = {"User-Agent": "job-agent/1.0 (job search assistant)"}
-    if config.HH_TOKEN:
-        h["Authorization"] = f"Bearer {config.HH_TOKEN}"
-    return h
+def _state(text: str) -> dict:
+    """Sahifaga singdirilgan JSON holatni ajratib oladi."""
+    m = STATE_RE.search(text)
+    if not m:
+        raise ValueError("HH-Lux-InitialState topilmadi (sahifa o'zgargan?)")
+    return json.loads(html.unescape(m.group(1)))
 
 
-def _clean(item: dict) -> dict:
-    snippet = item.get("snippet") or {}
-    salary = item.get("salary") or {}
-    salary_text = ""
-    if salary:
-        frm, to = salary.get("from"), salary.get("to")
-        cur = salary.get("currency", "")
-        salary_text = f"{frm or ''}–{to or ''} {cur}".strip("– ")
+def _salary(comp: dict) -> str:
+    if not comp or "noCompensation" in comp:
+        return ""
+    frm, to = comp.get("from"), comp.get("to")
+    cur = comp.get("currencyCode", "")
+    if frm and to and frm != to:
+        amount = f"{frm}–{to}"
+    else:
+        amount = str(frm or to or "")
+    return f"{amount} {cur}".strip() if amount else ""
+
+
+def _clean(v: dict) -> dict:
+    company = v.get("company") or {}
     return {
         "source": "hh.uz",
-        "url": item.get("alternate_url", ""),
-        "title": item.get("name", ""),
-        "company": (item.get("employer") or {}).get("name", ""),
-        "salary": salary_text,
-        "experience": (item.get("experience") or {}).get("name", ""),
-        "text": " ".join(
-            filter(None, [snippet.get("requirement"), snippet.get("responsibility")])
-        ),
-        "published_at": item.get("published_at", ""),
+        # displayHost mintaqaviy bo'lishi mumkin (samarkand.hh.uz) — asosiysini olamiz
+        "url": f"https://hh.uz/vacancy/{v['vacancyId']}",
+        "title": v.get("name", ""),
+        "company": company.get("visibleName") or company.get("name", ""),
+        "salary": _salary(v.get("compensation") or {}),
+        "experience": EXPERIENCE_UZ.get(v.get("workExperience", ""), ""),
+        "text": "",  # keyinroq to'ldiriladi, _fill_descriptions
+        "published_at": (v.get("publicationTime") or {}).get("$", ""),
     }
 
 
 def fetch(query: str) -> list[dict]:
     """Bitta so'rov bo'yicha barcha sahifalarni yig'adi."""
-    results, page, pages = [], 0, 1
-    while page < pages:
+    results, page = [], 0
+    while True:
         try:
             resp = requests.get(
-                API_URL,
+                SEARCH_URL,
                 params={
                     "text": query,
                     "area": config.HH_AREA_ID,
-                    "host": config.HH_HOST,
-                    "per_page": 50,
+                    "search_period": 2,  # oxirgi 2 kun
                     "page": page,
-                    "period": 2,  # oxirgi 2 kun
                 },
-                headers=_headers(),
-                timeout=15,
+                headers=HEADERS,
+                timeout=20,
             )
-            if resp.status_code == 403:
-                log.error(
-                    "hh 403: %s. Ilova tokeni kerak — 'python get_hh_token.py'",
-                    "HH_TOKEN o'rnatilmagan" if not config.HH_TOKEN
-                    else "HH_TOKEN yaroqsiz yoki bekor qilingan",
-                )
-                break
             resp.raise_for_status()
-            data = resp.json()
+            search = _state(resp.text)["vacancySearchResult"]
         except Exception as e:
             log.error("hh so'rovida xato (%s, page %s): %s", query, page, e)
             break
-        pages = data.get("pages", 1)
-        results.extend(_clean(i) for i in data.get("items", []))
+
+        results.extend(_clean(v) for v in search.get("vacancies", []))
+        # paging bitta sahifalik natijada null bo'ladi
+        pages = len((search.get("paging") or {}).get("pages", []))
         page += 1
+        if page >= pages:
+            break
     return results
 
 
-def collect() -> list[dict]:
-    if not config.HH_TOKEN:
-        log.warning(
-            "HH_TOKEN yo'q — hh.uz o'tkazib yuborildi. "
-            "Token olish: python get_hh_token.py"
+def _description(url: str) -> str:
+    """Vakansiya sahifasidan to'liq tavsifni oladi."""
+    try:
+        resp = requests.get(url, headers=HEADERS, timeout=20)
+        resp.raise_for_status()
+        block = BeautifulSoup(resp.text, "html.parser").select_one(
+            "[data-qa=vacancy-description]"
         )
-        return []
-    all_items = []
+        return block.get_text(" ", strip=True)[:3000] if block else ""
+    except Exception as e:
+        log.warning("Tavsif yuklanmadi (%s): %s", url, e)
+        return ""
+
+
+def _fill_descriptions(vacancies: list[dict]) -> None:
+    """Tavsiflarni yuklaydi — har biri alohida so'rov, shuning uchun limit bor."""
+    capped = vacancies[: config.HH_DESC_LIMIT]
+    if len(vacancies) > len(capped):
+        log.info(
+            "Tavsif limiti: %d ta vakansiyadan %d tasi to'liq yuklanadi",
+            len(vacancies), len(capped),
+        )
+    for v in capped:
+        v["text"] = _description(v["url"])
+
+
+def collect() -> list[dict]:
+    by_url = {}
     for q in config.SEARCH_QUERIES:
         items = fetch(q)
         log.info("hh.uz '%s': %d ta vakansiya", q, len(items))
-        all_items.extend(items)
+        for v in items:
+            by_url.setdefault(v["url"], v)  # so'rovlar kesishadi
+    all_items = list(by_url.values())
+    _fill_descriptions(all_items)
     return all_items

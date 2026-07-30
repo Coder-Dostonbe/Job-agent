@@ -31,7 +31,6 @@ jobs:
           TG_API_ID: ${{ secrets.TG_API_ID }}
           TG_API_HASH: ${{ secrets.TG_API_HASH }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-          HH_TOKEN: ${{ secrets.HH_TOKEN }}
           TG_SESSION_STRING: ${{ secrets.TG_SESSION_STRING }}
           DB_PATH: vacancies.db
         run: python main.py
