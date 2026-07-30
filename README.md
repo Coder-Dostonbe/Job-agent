@@ -1,47 +1,107 @@
 # Job Search Agent 🤖
 
-Har kuni hh.uz, Telegram kanallar va OLX'dan vakansiyalarni yig'ib, Doston profiliga
-moslik balini hisoblaydi (keyword + Claude AI) va Telegram'ga hisobot yuboradi.
+A personal job-hunting agent. Once a day it collects vacancies from **hh.uz**,
+**OLX.uz** and **Telegram channels**, throws away everything that is not a real
+job opening, scores what is left against your profile (keywords + Claude), and
+sends you a single digest in Telegram.
 
-## O'rnatish
+Built for the Uzbek market (Tashkent, Python/Django), but every source, query
+and profile lives in `config.py` — point it at your own.
+
+## How it works
+
+```
+collect  →  dedupe  →  is-it-a-real-vacancy?  →  score  →  report
+hh.uz       by URL     keyword rules            keyword    Telegram
+OLX.uz      + SQLite   + Claude Haiku           + Claude   message
+Telegram    history      (batched)              (top N)
+```
+
+**Why the vacancy filter?** Telegram job channels and OLX are full of posts that
+look like vacancies but are not: résumés from job seekers, "I'll build you a
+website" service ads, course advertising. The filter runs in two stages:
+
+1. **Keyword rules** (`scoring/vacancy_filter.py`) — free, catches the obvious
+   cases in Uzbek, Russian and English, and labels the rest `uncertain`.
+2. **Claude Haiku** (`scoring/ai_filter.py`) — only the `uncertain` posts, sent
+   in batches of 15. Costs well under a cent per day.
+
+If the API key is missing or a request fails, the filter **fails open**: the post
+is kept and the scoring stage decides. The agent never stops because of AI.
+
+## Setup
 
 ```bash
 pip install -r requirements.txt
+cp .env.example .env    # then fill it in
 ```
 
-## Kalitlarni olish (.env.example → .env)
+### Getting the credentials
 
-1. **TELEGRAM_BOT_TOKEN** — @BotFather'da yangi bot yarating
-2. **TELEGRAM_CHAT_ID** — botingizga xabar yozing, keyin brauzerda oching:
-   `https://api.telegram.org/bot<TOKEN>/getUpdates` — `chat.id` ni ko'rasiz
-3. **TG_API_ID / TG_API_HASH** — https://my.telegram.org → API development tools
-4. **ANTHROPIC_API_KEY** — https://console.anthropic.com (ixtiyoriy; bo'lmasa
-   faqat keyword scoring ishlaydi, agent baribir to'liq ishlayveradi)
+| Variable | Where to get it |
+| --- | --- |
+| `TELEGRAM_BOT_TOKEN` | Create a bot with [@BotFather](https://t.me/BotFather) |
+| `TELEGRAM_CHAT_ID` | Message your bot, then open `https://api.telegram.org/bot<TOKEN>/getUpdates` and read `chat.id` |
+| `TG_API_ID`, `TG_API_HASH` | [my.telegram.org](https://my.telegram.org) → API development tools |
+| `TG_SESSION_STRING` | See below |
+| `ANTHROPIC_API_KEY` | [console.anthropic.com](https://console.anthropic.com) — optional |
 
-## Birinchi ishga tushirish
+### Telegram session string
+
+Reading public channels requires a **user** session, not a bot token — the Bot
+API cannot read channels you do not own. Generate one once:
+
+```bash
+python create_session_qr.py
+```
+
+A QR code appears in your terminal. In the Telegram mobile app go to
+**Settings → Devices → Link Desktop Device** and scan it. The script prints a
+session string.
+
+> ⚠️ That string is full access to your Telegram account — stronger than your
+> password. Put it straight into `.env` or GitHub Secrets. Never paste it into a
+> chat, an issue, or a commit. If it leaks, revoke it under Settings → Devices.
+
+QR login is used instead of the usual phone-number flow because SMS and in-app
+codes are unreliable on some networks. Without a session string the agent still
+runs — it just skips the Telegram sources.
+
+## Running it
 
 ```bash
 python main.py
 ```
 
-Telethon birinchi safar telefon raqam va kod so'raydi — bu bir marta,
-keyin `agent.session` fayli saqlanadi. **Muhim:** Railway'ga deploy qilishdan
-oldin sessionni lokalda yaratib, faylni loyiha bilan birga yuklang.
+Vacancies already reported are remembered in `vacancies.db`, so you only ever
+see each one once.
 
-## Sozlash (config.py)
+## Configuration (`config.py`)
 
-- `TG_CHANNELS` — o'zingiz kuzatadigan ish kanallarini qo'shing/o'zgartiring
-- `SEARCH_QUERIES` — qidiruv so'zlari
-- `AI_MAX_VACANCIES` — kunlik AI tahlil limiti (xarajat nazorati)
+| Setting | Meaning |
+| --- | --- |
+| `PROFILE` | Your skills, experience and role — drives all scoring |
+| `SEARCH_QUERIES` | Search terms for hh.uz and OLX |
+| `HH_AREA_ID` | hh.uz region id (`97` = Uzbekistan) |
+| `TG_CHANNELS` | Channel usernames to watch, without `@` |
+| `TG_LOOKBACK_HOURS` | How far back to read each channel |
+| `OLX_URLS` | OLX search pages to scrape |
+| `REPORT_MIN_SCORE` | Minimum keyword score to appear in the report |
+| `AI_SCORE_THRESHOLD` / `AI_MAX_VACANCIES` | Cost control for deep AI analysis |
+| `AI_FILTER_ENABLED` / `AI_FILTER_BATCH_SIZE` / `AI_FILTER_MAX_POSTS` | Cost control for the vacancy filter |
 
-## Railway'da har kuni avtomatik ishlatish
+## Daily automation (GitHub Actions)
 
-1. GitHub'ga push qiling, Railway'da yangi loyiha yarating
-2. Variables bo'limiga .env dagi kalitlarni kiriting
-3. Settings → Cron Schedule: `0 4 * * *` (har kuni 09:00 Toshkent vaqti)
-4. Start command: `python main.py`
+`.github/workflows/daily-jobs.yml` runs the agent at 04:00 UTC (09:00 Tashkent)
+and can also be triggered by hand from the Actions tab.
 
-## Hisobot namunasi
+1. Push the repo to GitHub.
+2. **Settings → Secrets and variables → Actions** → add `TELEGRAM_BOT_TOKEN`,
+   `TELEGRAM_CHAT_ID`, `TG_API_ID`, `TG_API_HASH`, `TG_SESSION_STRING` and
+   `ANTHROPIC_API_KEY`.
+3. Adjust the `cron:` line if you want a different time.
+
+## Example report
 
 ```
 📊 Kunlik ish hisoboti
@@ -55,3 +115,30 @@ Yangi vakansiyalar: 14 ta, mos kelganlari: 4 ta
 
 📈 Bugun eng ko'p so'ralgan skillar: python (11), django (7), docker (5)...
 ```
+
+The report itself is written in Uzbek — see the prompts in `scoring/ai_scorer.py`
+and the labels in `reporter.py` if you want it in another language.
+
+## Layout
+
+```
+main.py                     pipeline
+config.py                   profile, sources, limits
+storage.py                  SQLite history + URL dedupe
+reporter.py                 Telegram delivery
+create_session_qr.py        one-time Telethon session generator
+collectors/  hh.py          hh.ru API
+             olx.py         OLX HTML scraping
+             tg_channels.py Telethon channel reader
+scoring/     vacancy_filter.py  stage 1 — keyword rules
+             ai_filter.py       stage 2 — Claude Haiku
+             keyword_scorer.py  profile match score
+             ai_scorer.py       deep analysis of the top matches
+```
+
+## Notes
+
+- `*.session` files and `.env` are gitignored. Keep them that way.
+- hh.uz may return `403` from datacenter IPs; the other sources keep working.
+- The SQLite file is not persisted between GitHub Actions runs yet, so a
+  scheduled run can re-report a vacancy it already sent.
