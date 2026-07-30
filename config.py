@@ -58,7 +58,8 @@ REPORT_MIN_SCORE = 40
 # Batafsil: TAKLIFLAR.md
 AI_FILTER_ENABLED = True      # shubhali e'lonlarni Haiku bilan tasniflash
 AI_FILTER_BATCH_SIZE = 15     # bitta API so'rovga necha e'lon sig'adi
-AI_FILTER_MAX_POSTS = 60      # kuniga AI'ga yuboriladigan maksimal e'lon
+AI_FILTER_MAX_POSTS = 150     # kuniga AI'ga yuboriladigan maksimal e'lon
+                              # (OLX ~40 + Telegram 3 kanal — 60 kam edi)
 
 # ============ MAXFIY KALITLAR (.env yoki GitHub Secrets) ============
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")

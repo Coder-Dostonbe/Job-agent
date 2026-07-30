@@ -24,9 +24,18 @@ async def run():
     vacancies += await tg_channels.collect()
     log.info("Jami yig'ildi: %d", len(vacancies))
 
-    # 2. FAQAT ISH O'RINLARI — gibrid filtr (keyword + AI, qarang: TAKLIFLAR.md)
+    # 2. YANGILARNI AJRATISH — filtrdan OLDIN.
+    # Sabab: bir e'lon OLX'ning ikkala qidiruvida (python, django) chiqishi
+    # mumkin. Avval URL bo'yicha dedup qilsak, AI'ga ikki marta yuborilmaydi.
+    all_new = storage.filter_new(vacancies)
+    log.info("Yangi (dedup'dan keyin): %d", len(all_new))
+    if not all_new:
+        reporter.send("📊 Bugun yangi mos vakansiya topilmadi.")
+        return
+
+    # 3. FAQAT ISH O'RINLARI — gibrid filtr (keyword + AI, qarang: TAKLIFLAR.md)
     real_vacancies, uncertain = [], []
-    for v in vacancies:
+    for v in all_new:
         if v["source"] == "hh.uz":  # hh API faqat vakansiya qaytaradi
             real_vacancies.append(v)
             continue
@@ -48,13 +57,11 @@ async def run():
             else:
                 log.info("Rad etildi (AI: ish o'rni emas): %s", v["title"][:60])
 
-    log.info("Ish o'rni emas deb rad etildi: %d", len(vacancies) - len(real_vacancies))
-    vacancies = real_vacancies
-
-    # 3. YANGILARNI AJRATISH
-    new = storage.filter_new(vacancies)
-    log.info("Yangi: %d", len(new))
+    log.info("Ish o'rni emas deb rad etildi: %d", len(all_new) - len(real_vacancies))
+    new = real_vacancies
     if not new:
+        # Rad etilganlar ham bazaga yoziladi — ertaga AI'ga qayta yuborilmasin
+        storage.save(all_new)
         reporter.send("📊 Bugun yangi mos vakansiya topilmadi.")
         return
 
@@ -75,7 +82,7 @@ async def run():
     relevant.sort(key=lambda v: -(v["ai"]["score"] if v.get("ai") else v["score"]))
 
     # 6. SAQLASH + HISOBOT
-    storage.save(new)
+    storage.save(all_new)  # rad etilganlar ham — takror tekshirilmasin
     stats = storage.skill_stats(new)
     reporter.send(reporter.build_report(relevant, stats, len(new)))
     log.info("Hisobot yuborildi ✅")
