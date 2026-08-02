@@ -94,9 +94,10 @@ async def run():
     for v in shown[:config.AI_MAX_VACANCIES]:
         if v["score"] >= config.AI_SCORE_THRESHOLD:
             v["ai"] = ai_scorer.analyze(v)
+    ai_scorer.report_health()
 
     # AI ball bo'lsa, saralashda ustunlik beramiz
-    shown.sort(key=lambda v: -(v["ai"]["score"] if v.get("ai") else v["score"]))
+    shown.sort(key=lambda v: -reporter.rank(v))
 
     # 7. SAQLASH + HISOBOT
     storage.save(all_new)  # rad etilganlar ham — takror tekshirilmasin

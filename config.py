@@ -40,6 +40,11 @@ SEARCH_QUERIES = ["python", "django", "backend", "AI-разработчик"]
 HH_AREA_ID = "97"  # Uzbekistan
 HH_DESC_LIMIT = 25      # nechta vakansiyaning to'liq matni yuklansin (har biri +1 so'rov)
 HH_REQUEST_DELAY = 2.0  # so'rovlar orasidagi pauza, soniya (bot himoyasi uchun)
+AI_MIN_SUCCESS_RATIO = 0.7  # chuqur tahlilning shu ulushidan kami ishlasa —
+                            # ogohlantirish. Tahlilsiz vakansiya keyword ball
+                            # bilan ko'rsatiladi: hisobot bir xil ko'rinadi,
+                            # lekin sifati sezilarli pasayadi.
+
 HH_DESC_MIN_RATIO = 0.7 # tavsiflarning shu ulushidan kami yuklansa — ogohlantirish.
                         # Tavsifsiz vakansiya deyarli ballanmaydi (faqat sarlavha
                         # qoladi), shuning uchun sekin degradatsiya ham ko'rinsin.

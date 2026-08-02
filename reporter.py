@@ -25,6 +25,19 @@ def source_group(v: dict) -> str:
     return "telegram" if src.startswith("t.me/") else src
 
 
+def rank(v: dict) -> int:
+    """Saralash bali: AI bahosi bo'lsa o'sha, aks holda keyword ball.
+
+    Shakli `ai_scorer` da kafolatlangan, lekin saralash — butun hisobot
+    o'tadigan yagona tor joy: bu yerdagi `TypeError` bitta vakansiyani emas,
+    kunlik hisobotni butunlay yo'q qiladi. Shuning uchun himoya takrorlangan.
+    """
+    ai = v.get("ai")
+    if isinstance(ai, dict) and isinstance(ai.get("score"), int):
+        return ai["score"]
+    return v.get("score", 0)
+
+
 def select(scored: list[dict]) -> list[dict]:
     """Hisobotga tushadigan vakansiyalarni tanlaydi.
 
@@ -46,7 +59,7 @@ def select(scored: list[dict]) -> list[dict]:
             rest.append(v)
     picked = quota[: config.REPORT_LIMIT]
     picked += rest[: config.REPORT_LIMIT - len(picked)]
-    picked.sort(key=lambda v: -(v["ai"]["score"] if v.get("ai") else v["score"]))
+    picked.sort(key=lambda v: -rank(v))
     return picked
 
 
@@ -109,14 +122,23 @@ def build_report(shown: list[dict], stats: dict, total_new: int,
 
     for i, v in enumerate(shown, 1):
         ai = v.get("ai")
-        emoji = VERDICT_EMOJI.get(ai["verdict"], "⚪") if ai else "⚪"
+        # Ballsiz "tahlil" ni AI bahosi deb ko'rsatish yolg'on bo'lardi:
+        # keyword ball AI baliday ko'rinib qolardi. Shubhali bo'lsa — keyword.
+        if not (isinstance(ai, dict) and isinstance(ai.get("score"), int)):
+            ai = None
+        emoji = VERDICT_EMOJI.get(ai.get("verdict"), "⚪") if ai else "⚪"
         lines.append(f"{emoji} <b>{i}. {escape(v['title'][:70])}</b>")
         meta = " | ".join(filter(None, [v["source"], v["company"], v["salary"]]))
         if meta:
             lines.append(f"   {escape(meta)}")
         if ai:
-            lines.append(f"   AI: {ai['score']}/100 — {escape(ai['reason'])}")
-            lines.append(f"   💡 CV: {escape(ai['cv_tip'])}")
+            reason = ai.get("reason") or ""
+            tip = ai.get("cv_tip") or ""
+            # Sababsiz ball ham foydali — bo'sh tire qo'shib chalkashtirmaymiz
+            head = f"   AI: {ai['score']}/100"
+            lines.append(f"{head} — {escape(reason)}" if reason else head)
+            if tip:
+                lines.append(f"   💡 CV: {escape(tip)}")
         else:
             lines.append(f"   Keyword ball: {v['score']}/100")
         # Uzun havola o'rniga bosiladigan matn

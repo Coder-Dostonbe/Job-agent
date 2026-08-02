@@ -29,6 +29,25 @@ website" service ads, course advertising. The filter runs in two stages:
 If the API key is missing or a request fails, the filter **fails open**: the post
 is kept and the scoring stage decides. The agent never stops because of AI.
 
+**Nothing the model returns is trusted.** A language model is an untrusted input
+source, not an API: it wraps JSON in prose, drops keys, writes `"85"` where a
+number belongs, invents ids, and gets cut off mid-object at the token limit. So
+the responses go through `scoring/ai_json.py` (find the JSON, whatever it is
+wrapped in) and then through per-module validation:
+
+- **Deep analysis** returns either `None` or a dict where `score` (int, 0–100),
+  `verdict`, `reason` and `cv_tip` are all present and correctly typed. A
+  missing `verdict` is rebuilt from the score rather than thrown away; a
+  missing score drops the analysis and the vacancy falls back to its keyword
+  score. One malformed response costs one vacancy's analysis — never the report.
+- **The vacancy filter** validates each item on its own, so one bad entry no
+  longer discards the whole batch of 15. Out-of-range ids are dropped: an
+  invented id would otherwise apply one post's verdict to a different post.
+
+How well the AI actually worked shows up in the health line
+(`ai-tahlil 4/6 ⚠️`), because a report built entirely from keyword scores looks
+exactly like a normal one.
+
 **Source diagnostics.** Every report ends with a health line, so a broken
 scraper never looks like a quiet job market:
 
@@ -148,6 +167,7 @@ the digest is sent anyway, with the warning attached.
 | `REPORT_LIMIT` | Maximum vacancies in one report |
 | `REPORT_SOURCE_QUOTA` | Slots guaranteed to each source, so a high-volume source cannot crowd the others out. Unused slots go to whoever else scored best |
 | `AI_SCORE_THRESHOLD` / `AI_MAX_VACANCIES` | Cost control for deep AI analysis |
+| `AI_MIN_SUCCESS_RATIO` | Warn if fewer than this share of AI analyses returned a usable answer |
 | `AI_FILTER_ENABLED` / `AI_FILTER_BATCH_SIZE` / `AI_FILTER_MAX_POSTS` | Cost control for the vacancy filter |
 
 ## Daily automation (GitHub Actions)
@@ -193,6 +213,7 @@ collectors/  hh.py          hh.uz search page
              tg_channels.py Telethon channel reader
 scoring/     vacancy_filter.py  stage 1 — keyword rules
              ai_filter.py       stage 2 — Claude Haiku
+             ai_json.py         safe JSON extraction from model replies
              keyword_scorer.py  profile match score
              ai_scorer.py       deep analysis of the top matches
 ```
