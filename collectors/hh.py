@@ -21,6 +21,7 @@ from bs4 import BeautifulSoup
 
 import config
 import health
+from scoring import keyword_scorer, vacancy_filter
 
 log = logging.getLogger("hh")
 
@@ -140,9 +141,28 @@ def _description(url: str) -> str | None:
     return block.get_text(" ", strip=True)[:3000] if block else ""
 
 
+def _priority(v: dict) -> tuple[int, int]:
+    """Tavsif yuklash navbati: avval dasturlash roli, keyin sarlavha bali.
+
+    Ilgari birinchi `HH_DESC_LIMIT` ta e'lon olinardi — tartib esa qidiruv
+    navbatiga bog'liq, ya'ni amalda tasodifiy edi. Oqibati jiddiy: tavsifsiz
+    vakansiya ijobiy kalit so'z to'play olmaydi va 40-52 ball atrofida qotib
+    qoladi, ya'ni hisobotga ham, AI tahliliga ham tushmaydi. Natijada
+    saralash moslikni emas, **ma'lumot to'liqligini** o'lchardi: ro'yxat
+    oxiriga tushib qolgan a'lo vakansiya shunchaki matni yuklanmagani uchun
+    yo'qolardi.
+
+    Endi navbat mazmunga qarab beriladi. Menejer/dizayner kabi rollar esa eng
+    pastga tushadi — ular baribir rad etiladi, so'rov sarflash ortiqcha
+    (har bir tavsif = bitta so'rov + 2 soniya pauza).
+    """
+    return (1 if vacancy_filter.role_check(v["title"]) else 0,
+            -keyword_scorer.score(v)[0])
+
+
 def _fill_descriptions(vacancies: list[dict]) -> None:
     """Tavsiflarni yuklaydi — har biri alohida so'rov, shuning uchun limit bor."""
-    capped = vacancies[: config.HH_DESC_LIMIT]
+    capped = sorted(vacancies, key=_priority)[: config.HH_DESC_LIMIT]
     if len(vacancies) > len(capped):
         log.info(
             "Tavsif limiti: %d ta vakansiyadan %d tasi to'liq yuklanadi",

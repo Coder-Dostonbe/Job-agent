@@ -140,7 +140,10 @@ def build_report(shown: list[dict], stats: dict, total_new: int,
             if tip:
                 lines.append(f"   💡 CV: {escape(tip)}")
         else:
-            lines.append(f"   Keyword ball: {v['score']}/100")
+            # Tavsifsiz vakansiya faqat sarlavha bo'yicha ballangan — bu ball
+            # boshqalarniki bilan bir xil ko'rinsa, o'quvchini chalg'itadi.
+            note = "" if v.get("text") else " (tavsif yuklanmadi — faqat sarlavha)"
+            lines.append(f"   Keyword ball: {v['score']}/100{note}")
         # Uzun havola o'rniga bosiladigan matn
         lines.append(f'   <a href="{escape(v["url"], quote=True)}">🔗 Vakansiyani ko\'rish</a>\n')
 

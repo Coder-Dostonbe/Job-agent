@@ -38,7 +38,12 @@ SEARCH_QUERIES = ["python", "django", "backend", "AI-разработчик"]
 
 # hh.uz sozlamalari
 HH_AREA_ID = "97"  # Uzbekistan
-HH_DESC_LIMIT = 25      # nechta vakansiyaning to'liq matni yuklansin (har biri +1 so'rov)
+# Nechta vakansiyaning to'liq matni yuklansin (har biri +1 so'rov + pauza).
+# Qaysi 25 tasi degani muhim edi: ilgari tasodifiy tanlanardi, endi sarlavha
+# bali bo'yicha eng istiqbollilari olinadi (qarang: hh._priority). Limit 25 dan
+# 40 ga ko'tarildi — run #36 da hh.uz 53 ta e'lon berdi va agent atigi 2 daqiqa
+# ishladi, ya'ni bosqichdagi 15 daqiqalik limitgacha keng joy bor.
+HH_DESC_LIMIT = 40
 HH_REQUEST_DELAY = 2.0  # so'rovlar orasidagi pauza, soniya (bot himoyasi uchun)
 AI_MIN_SUCCESS_RATIO = 0.7  # chuqur tahlilning shu ulushidan kami ishlasa —
                             # ogohlantirish. Tahlilsiz vakansiya keyword ball

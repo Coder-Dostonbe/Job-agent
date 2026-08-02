@@ -9,6 +9,12 @@ Gibrid yondashuv (1-bosqich — shu modul, bepul keyword tekshiruv):
 - "seeker"    → aniq izlovchi/xizmat e'loni, rad etiladi
 - "uncertain" → keyword'lar aniq javob bermadi — 2-bosqichga (ai_filter,
   Haiku klassifikatsiyasi) yuboriladi.
+
+Bundan alohida `role_check()` bor: u e'lon **turini** emas, **rolini** ajratadi.
+"Продукт-менеджер", "Директор департамента разработки", "Менеджер отдела
+B2B-продаж" — bularning hammasi haqiqiy vakansiya, ya'ni yuqoridagi filtrdan
+bemalol o'tadi, lekin dasturlash ishi emas. Ular hisobotda joy egallab, chinakam
+vakansiyalarni pastga surib turardi.
 """
 
 # Ish izlovchi yoki o'z xizmatini taklif qilayotgan odam belgilari
@@ -57,6 +63,56 @@ VACANCY_MARKERS = [
     "requirements", "responsibilities", "salary", "join our team",
     "send your cv", "send cv",
 ]
+
+
+# Dasturlash bo'lmagan rollar. Bular **faqat sarlavhada** qidiriladi va topilsa
+# e'lon butunlay rad etiladi — ball bilan pasaytirilmaydi, chunki bu ball
+# masalasi emas: menejer o'rni qanchalik yaxshi bo'lmasin, bizga kerak emas.
+#
+# Nega faqat sarlavha: haqiqiy dasturchi vakansiyasining **matnida** "отдел
+# продаж", "менеджер проекта", "директор" so'zlari muntazam uchraydi — kimlar
+# bilan ishlashi, kimga hisobot berishi tasvirlanadi. Rol esa deyarli har doim
+# sarlavhada turadi.
+#
+# Ro'yxat ataylab tor: shubhali atamalar (masalan yolg'iz "b2b" yoki
+# "администратор") qo'shilmagan, chunki ular dasturchi sarlavhasida ham
+# uchrashi mumkin. Har bir rad etish logga aynan qaysi atama sababli
+# tashlangani bilan yoziladi — jimgina filtr eng yomon filtr.
+ROLE_REJECT = [
+    # rahbariyat va boshqaruv
+    "директор", "руководител", "начальник", "заведующ", "head of",
+    "менеджер проект", "проджект", "project manager",
+    "продакт", "продукт-менеджер", "продуктовый менеджер",
+    "product manager", "product owner", "scrum",
+    # savdo va marketing
+    "продаж", "sales", "маркетолог", "маркетинг", "marketing",
+    "smm", "таргетолог", "копирайт",
+    "контент-менеджер", "контент менеджер", "бренд-менеджер", "pr-менеджер",
+    # tahlil (dasturlash emas — texnik topshiriq yozadi)
+    "бизнес-аналитик", "бизнес аналитик", "системный аналитик",
+    "business analyst",
+    # dizayn
+    "дизайнер", "designer", "ux/ui", "ui/ux",
+    # boshqa notexnik
+    "рекрутер", "рекрутинг", "hr-менеджер", "hr менеджер", "эйчар",
+    "бухгалтер", "юрист", "юрисконсульт", "секретар", "кассир",
+    "офис-менеджер", "офис менеджер", "курьер", "консультант",
+    "оператор", "колл-центр", "call-центр", "call center",
+    "логист", "снабжен", "закупк", "системный администратор",
+]
+
+
+def role_check(title: str) -> str:
+    """Sarlavha dasturlashdan boshqa rolni bildirsa — mos kelgan atamani qaytaradi.
+
+    Bo'sh satr — e'lon o'tadi. Qaytarilgan atama chaqiruvchi tomonda logga
+    yoziladi, ya'ni nima sababdan tashlangani har doim ko'rinib turadi.
+    """
+    low = _normalize(title)
+    for term in ROLE_REJECT:
+        if term in low:
+            return term
+    return ""
 
 
 def _normalize(text: str) -> str:

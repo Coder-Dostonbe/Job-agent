@@ -29,6 +29,25 @@ website" service ads, course advertising. The filter runs in two stages:
 If the API key is missing or a request fails, the filter **fails open**: the post
 is kept and the scoring stage decides. The agent never stops because of AI.
 
+**A separate question is the role.** "Продукт-менеджер", "Директор департамента
+разработки", "Менеджер отдела B2B-продаж" are genuine vacancies — they sail
+through the filter above — but they are not programming jobs, and they were
+taking up report slots that belong to real ones. `role_check()` drops them
+outright rather than scoring them down: no product-management opening is
+interesting at any score.
+
+It reads the **title only**. A real developer posting routinely mentions
+"отдел продаж" or "менеджер проекта" in its body, describing who you would work
+with — matching on that would throw away exactly what we want. The term list is
+deliberately narrow for the same reason, and every rejection is logged with the
+term that caused it. The filter you cannot see is the one you cannot trust.
+
+Descriptions are fetched for the most promising titles rather than the first
+`HH_DESC_LIMIT` the search happened to return. That order used to be effectively
+random, and a vacancy without its description cannot accumulate keyword points —
+so the ranking was measuring how complete the data was, not how well the job
+fits. Vacancies still shown without one say so on their score line.
+
 **Nothing the model returns is trusted.** A language model is an untrusted input
 source, not an API: it wraps JSON in prose, drops keys, writes `"85"` where a
 number belongs, invents ids, and gets cut off mid-object at the token limit. So
@@ -215,7 +234,7 @@ the digest is sent anyway, with the warning attached.
 | `PROFILE` | Your skills, experience and role — drives all scoring |
 | `SEARCH_QUERIES` | Search terms for hh.uz and OLX |
 | `HH_AREA_ID` | hh.uz region id (`97` = Uzbekistan) |
-| `HH_DESC_LIMIT` | How many hh.uz vacancies get their full text fetched (one request each) |
+| `HH_DESC_LIMIT` | How many hh.uz vacancies get their full text fetched (one request each). The most promising titles go first — see `hh._priority` |
 | `HH_DESC_MIN_RATIO` | Warn if fewer than this share of descriptions loaded — an unscored vacancy is a silently useless one |
 | `DB_CONNECT_RETRIES` / `DB_CONNECT_TIMEOUT` / `DB_RETRY_DELAY` | Postgres connection attempts before falling back to SQLite |
 | `TREND_HISTORY_RUNS` / `TREND_MIN_RUNS` | Size of the baseline window, and how much history is needed before comparing at all |
@@ -279,7 +298,7 @@ collectors/  hh.py          hh.uz search page
              tg_channels.py Telethon channel reader
 conftest.py                 test isolation (no network, no real config)
 tests/                      pytest suite
-scoring/     vacancy_filter.py  stage 1 — keyword rules
+scoring/     vacancy_filter.py  stage 1 — keyword rules + role rejection
              ai_filter.py       stage 2 — Claude Haiku
              ai_json.py         safe JSON extraction from model replies
              keyword_scorer.py  profile match score

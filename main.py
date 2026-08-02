@@ -92,7 +92,18 @@ async def run():
 
     # 3. FAQAT ISH O'RINLARI — gibrid filtr (keyword + AI, qarang: TAKLIFLAR.md)
     real_vacancies, uncertain = [], []
+    rejected_roles = 0
     for v in all_new:
+        # Rol tekshiruvi BARCHA manbalarga tegishli. hh.uz quyida turdagi
+        # filtrdan ozod (u faqat vakansiya qaytaradi), lekin aynan hh.uz
+        # "Продукт-менеджер" va "Директор департамента разработки" kabi
+        # e'lonlarni eng ko'p olib keladi — ular haqiqiy vakansiya, shunchaki
+        # dasturlash emas.
+        role = vacancy_filter.role_check(v["title"])
+        if role:
+            rejected_roles += 1
+            log.info("Rad etildi (dasturlash emas — '%s'): %s", role, v["title"][:60])
+            continue
         if v["source"] == "hh.uz":  # hh API faqat vakansiya qaytaradi
             real_vacancies.append(v)
             continue
@@ -114,7 +125,8 @@ async def run():
             else:
                 log.info("Rad etildi (AI: ish o'rni emas): %s", v["title"][:60])
 
-    log.info("Ish o'rni emas deb rad etildi: %d", len(all_new) - len(real_vacancies))
+    log.info("Rad etildi: %d ta (shundan %d tasi dasturlash bo'lmagan rol)",
+             len(all_new) - len(real_vacancies), rejected_roles)
     new = real_vacancies
     if not new:
         _deliver(_no_vacancies_report())
