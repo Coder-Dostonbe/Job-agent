@@ -117,6 +117,19 @@ runs — it just skips the Telegram sources.
 python main.py
 ```
 
+### Tests
+
+```bash
+pip install -r requirements-dev.txt
+python -m pytest
+```
+
+They run offline in well under a second. `conftest.py` blanks the config and
+blocks `requests` before every test, so a test can neither reach the network
+nor touch your real database — a test that wants an API reply patches
+`requests.post` with a canned one. The same suite runs on every push
+(`.github/workflows/tests.yml`), with no secrets handed to it.
+
 ### History
 
 Every vacancy the agent has seen is remembered, so you are never shown the same
@@ -211,6 +224,8 @@ create_session_qr.py        one-time Telethon session generator
 collectors/  hh.py          hh.uz search page
              olx.py         OLX HTML scraping
              tg_channels.py Telethon channel reader
+conftest.py                 test isolation (no network, no real config)
+tests/                      pytest suite
 scoring/     vacancy_filter.py  stage 1 — keyword rules
              ai_filter.py       stage 2 — Claude Haiku
              ai_json.py         safe JSON extraction from model replies

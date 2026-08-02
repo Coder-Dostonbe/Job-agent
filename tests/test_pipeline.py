@@ -1,0 +1,102 @@
+"""Run darajasidagi himoya: agent jimgina o'lib qolmasin.
+
+Va hh.uz tavsiflarining sekin degradatsiyasi — har bir so'rov muvaffaqiyatli
+bo'lsa ham, selector o'zgargan bo'lsa matn bo'sh keladi va vakansiya deyarli
+ballanmaydi.
+"""
+import pytest
+
+import config
+import health
+import main
+import reporter
+from collectors import hh
+
+
+class TestDescriptionDegradation:
+    def test_everything_loaded_is_quiet(self):
+        health.expect("hh.uz")
+        health.found("hh.uz", 63)
+        hh._report_description_health(25, 25, aborted=False)
+        assert health.alerts() == []
+
+    def test_scattered_failures_are_caught(self):
+        """25 tadan 12 tasi — hech qanday so'rov yiqilmagan, lekin hisobot
+        sifati yarmiga tushgan. Ilgari bu umuman sezilmasdi."""
+        health.expect("hh.uz")
+        health.found("hh.uz", 63)
+        hh._report_description_health(25, 12, aborted=False)
+        assert len(health.alerts()) == 1
+        assert health._entry("hh.uz").status == "degraded"
+
+    def test_changed_selector_gives_empty_texts(self):
+        health.expect("hh.uz")
+        health.found("hh.uz", 63)
+        hh._report_description_health(25, 0, aborted=False)
+        assert len(health.alerts()) == 1
+
+    def test_threshold_is_inclusive(self):
+        health.expect("hh.uz")
+        health.found("hh.uz", 63)
+        hh._report_description_health(10, 7, aborted=False)  # aynan 0.7
+        assert health.alerts() == []
+
+    def test_aborted_run_says_so(self):
+        health.expect("hh.uz")
+        health.found("hh.uz", 63)
+        hh._report_description_health(25, 4, aborted=True)
+        assert "to'xtatildi" in health.alerts()[0]
+
+    def test_no_vacancies_means_no_division_by_zero(self):
+        health.expect("hh.uz")
+        health.found("hh.uz", 0)
+        hh._report_description_health(0, 0, aborted=False)
+        assert len(health.alerts()) == 1  # faqat "empty", tavsif haqida emas
+
+
+class TestCrashGuard:
+    @pytest.fixture
+    def failing_run(self, monkeypatch):
+        async def boom():
+            raise RuntimeError("sinov uchun ataylab yiqilish")
+
+        monkeypatch.setattr(main, "run", boom)
+
+    @pytest.fixture
+    def outbox(self, monkeypatch):
+        sent = []
+        monkeypatch.setattr(reporter, "send", lambda text: sent.append(text))
+        return sent
+
+    def test_crash_is_reported_then_re_raised(self, failing_run, outbox):
+        """Qayta ko'tarish shart: Actions run'i ham qizil bo'lsin, aks holda
+        yashil belgi hamma narsa joyida degan yolg'on taassurot beradi."""
+        with pytest.raises(RuntimeError):
+            main.main()
+        assert len(outbox) == 1
+        assert outbox[0].startswith("🚨")
+
+    def test_a_broken_messenger_does_not_hide_the_original_error(
+            self, failing_run, monkeypatch):
+        def broken_send(text):
+            raise ConnectionError("Telegram ham yiqildi")
+
+        monkeypatch.setattr(reporter, "send", broken_send)
+        with pytest.raises(RuntimeError):
+            main.main()
+
+
+class TestNoVacanciesReport:
+    def test_it_carries_the_diagnostics(self):
+        """Diagnostikasiz bu xabar ikki xil holatni bir xil ko'rsatardi:
+        haqiqatan ish yo'q va scraper sinib qolgan."""
+        health.expect("hh.uz")
+        health.error("hh.uz", "timeout")
+        text = main._no_vacancies_report()
+        assert "Bugun yangi mos vakansiya topilmadi" in text
+        assert "hh.uz" in text
+
+    def test_it_stays_short_when_everything_is_fine(self):
+        health.expect("hh.uz")
+        health.found("hh.uz", 63)
+        assert "Manbalarda muammo" not in main._no_vacancies_report()

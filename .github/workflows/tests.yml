@@ -1,0 +1,31 @@
+name: Tests
+
+# Kunlik agent run'idan alohida: testlar har push'da ishlashi kerak, agent esa
+# faqat jadval bo'yicha. Testlarga hech qanday secret berilmaydi — ular tarmoqqa
+# ham, bazaga ham chiqmaydi (qarang: conftest.py).
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  pytest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: pip install -r requirements-dev.txt
+
+      - name: Run tests
+        run: python -m pytest
