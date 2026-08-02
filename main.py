@@ -37,6 +37,27 @@ def _mark_crash_reported() -> None:
         log.warning("Belgi fayli yozilmadi (%s) — Actions takroriy xabar yuborishi mumkin", e)
 
 
+def _deliver(text: str) -> None:
+    """Hisobotni yuboradi; yetkazilmasa run'ni yiqitadi.
+
+    Ilgari `reporter.send()` natijasi umuman tekshirilmasdi. Telegram xabarni
+    rad etsa (token almashtirilgan, chat bloklangan, HTML yaroqsiz), agent
+    baribir "Hisobot yuborildi ✅" deb yozib, Actions run'i yashil bo'lib
+    tugardi — ya'ni foydalanuvchi hisobot kelmaganini faqat sezib qolsa
+    bilardi. Endi bu yiqilish: run qizil bo'ladi va workflow'dagi zaxira
+    bildirishnoma ishga tushadi.
+
+    Telegram umuman sozlanmagan bo'lsa (lokal ishlash) bu xato emas —
+    hisobot konsolga chiqadi va run davom etadi.
+    """
+    if reporter.send(text) or not reporter.configured():
+        return
+    raise RuntimeError(
+        "Hisobot Telegram'ga yetkazilmadi — sabab yuqoridagi loglarda "
+        "(token, chat_id yoki xabar formati)"
+    )
+
+
 def _no_vacancies_report() -> str:
     """"Bugun hech nima yo'q" xabari — manbalar holati bilan birga.
 
@@ -66,7 +87,7 @@ async def run():
     all_new = storage.filter_new(vacancies)
     log.info("Yangi (dedup'dan keyin): %d", len(all_new))
     if not all_new:
-        reporter.send(_no_vacancies_report())
+        _deliver(_no_vacancies_report())
         return
 
     # 3. FAQAT ISH O'RINLARI — gibrid filtr (keyword + AI, qarang: TAKLIFLAR.md)
@@ -96,9 +117,11 @@ async def run():
     log.info("Ish o'rni emas deb rad etildi: %d", len(all_new) - len(real_vacancies))
     new = real_vacancies
     if not new:
-        # Rad etilganlar ham bazaga yoziladi — ertaga AI'ga qayta yuborilmasin
+        _deliver(_no_vacancies_report())
+        # Rad etilganlar ham bazaga yoziladi — ertaga AI'ga qayta yuborilmasin.
+        # Yuborishdan KEYIN: yetkazilmagan bo'lsa yuqorida yiqilamiz va ertaga
+        # hammasi qaytadan ko'riladi (ozgina AI xarajati — yo'qotishdan arzon).
         storage.save(all_new)
-        reporter.send(_no_vacancies_report())
         return
 
     # 4. KEYWORD SCORING
@@ -122,10 +145,14 @@ async def run():
     # AI ball bo'lsa, saralashda ustunlik beramiz
     shown.sort(key=lambda v: -reporter.rank(v))
 
-    # 7. SAQLASH + HISOBOT
-    storage.save(all_new)  # rad etilganlar ham — takror tekshirilmasin
+    # 7. HISOBOT, KEYIN SAQLASH
+    # Tartib ataylab shunday. Ilgari avval saqlanardi: hisobot yetib bormasa
+    # ham vakansiyalar "ko'rilgan" deb belgilanar va **boshqa hech qachon
+    # ko'rsatilmasdi** — jimgina yo'qolgan kun. Endi yetkazilgani aniq bo'lgach
+    # yoziladi.
     stats = storage.skill_stats(new)
-    reporter.send(reporter.build_report(shown, stats, len(new), len(relevant)))
+    _deliver(reporter.build_report(shown, stats, len(new), len(relevant)))
+    storage.save(all_new)  # rad etilganlar ham — takror tekshirilmasin
     log.info("Hisobot yuborildi ✅")
 
 

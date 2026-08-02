@@ -169,6 +169,17 @@ def _split(text: str, limit: int = 3900) -> list[str]:
     return chunks
 
 
+def configured() -> bool:
+    """Telegram'ga yuborish umuman sozlanganmi.
+
+    Sozlanmagan bo'lsa `send()` hisobotni konsolga chiqaradi va `False`
+    qaytaradi — bu lokal ishlashda kutilgan holat, nosozlik emas. Chaqiruvchi
+    ikkalasini farqlay olishi kerak: "Telegram yiqildi" bilan "Telegram
+    ulanmagan" bir xil javob bo'lsa, lokal har bir run xato bilan tugardi.
+    """
+    return bool(config.TELEGRAM_BOT_TOKEN and config.TELEGRAM_CHAT_ID)
+
+
 def send(text: str) -> bool:
     """Xabarni Telegram'ga yuboradi. Yetkazilgan bo'lsa `True`.
 
@@ -178,7 +189,7 @@ def send(text: str) -> bool:
     olmasdi. Endi farqlay oladi — yiqilish xabari uchun bu hal qiluvchi,
     chunki Actions'dagi zaxira bildirishnoma aynan shunga qarab ishlaydi.
     """
-    if not (config.TELEGRAM_BOT_TOKEN and config.TELEGRAM_CHAT_ID):
+    if not configured():
         log.warning("Bot token/chat_id yo'q — hisobot konsolga chiqarildi:\n%s", text)
         return False
     url = f"https://api.telegram.org/bot{config.TELEGRAM_BOT_TOKEN}/sendMessage"

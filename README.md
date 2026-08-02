@@ -90,6 +90,11 @@ And if the agent crashes outright, it sends the reason before dying, then
 re-raises so the Actions run is marked failed too. Silence is never the way
 you find out something broke.
 
+A report Telegram *rejects* counts as a crash for the same reason. The run
+fails rather than logging a cheerful "sent ✅", and the day's vacancies are
+written to history only **after** delivery succeeds — otherwise they would be
+marked seen, never shown again, and quietly lost.
+
 That still left one gap, because the crash report is written in Python: if the
 run dies *before* Python starts — `pip install` fails, a secret is rotated
 away, the runner hits a limit, the step times out — nothing sends anything, and

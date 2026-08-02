@@ -2,7 +2,7 @@
 
 GitHub Actions uchun: TG_SESSION_STRING env var orqali string session ishlatiladi.
 Local uchun: 'agent.session' fayli ishlatiladi.
-Session yaratish: python create_session.py
+Session yaratish: python create_session_qr.py
 """
 import logging
 import os
