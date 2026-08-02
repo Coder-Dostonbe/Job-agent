@@ -169,11 +169,20 @@ def _split(text: str, limit: int = 3900) -> list[str]:
     return chunks
 
 
-def send(text: str) -> None:
+def send(text: str) -> bool:
+    """Xabarni Telegram'ga yuboradi. Yetkazilgan bo'lsa `True`.
+
+    `send()` ataylab istisno ko'tarmaydi — bitta yuborilmagan xabar butun
+    run'ni o'ldirmasligi kerak. Lekin shu sababli yiqilish ham muvaffaqiyat
+    kabi ko'rinardi: chaqiruvchi "chaqirdim" bilan "yetkazildi" ni farqlay
+    olmasdi. Endi farqlay oladi — yiqilish xabari uchun bu hal qiluvchi,
+    chunki Actions'dagi zaxira bildirishnoma aynan shunga qarab ishlaydi.
+    """
     if not (config.TELEGRAM_BOT_TOKEN and config.TELEGRAM_CHAT_ID):
         log.warning("Bot token/chat_id yo'q — hisobot konsolga chiqarildi:\n%s", text)
-        return
+        return False
     url = f"https://api.telegram.org/bot{config.TELEGRAM_BOT_TOKEN}/sendMessage"
+    delivered = True
     for chunk in _split(text):
         try:
             resp = requests.post(url, json={
@@ -184,5 +193,8 @@ def send(text: str) -> None:
             }, timeout=15)
             if not resp.ok:
                 log.error("Telegram rad etdi (%s): %s", resp.status_code, resp.text[:200])
+                delivered = False
         except Exception as e:
             log.error("Telegram yuborishda xato: %s", e)
+            delivered = False
+    return delivered

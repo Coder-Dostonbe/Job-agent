@@ -107,3 +107,67 @@ class TestSplit:
         assert len(chunks) > 1
         assert all(len(c) <= 3900 + 100 for c in chunks)
         assert all(c.count("<a") == c.count("</a>") for c in chunks)
+
+
+class TestSend:
+    """`send()` yetkazilganini rostgo'y aytishi kerak.
+
+    Ilgari u har doim `None` qaytarardi: Telegram 401 bersa ham, tarmoq
+    uzilsa ham chaqiruvchi uchun natija muvaffaqiyat bilan bir xil edi.
+    Yiqilish xabari uchun bu farq hal qiluvchi — Actions'dagi zaxira
+    bildirishnoma aynan shunga qarab jim turadi yoki gapiradi.
+    """
+
+    class _Resp:
+        def __init__(self, ok=True, status_code=200, text=""):
+            self.ok, self.status_code, self.text = ok, status_code, text
+
+    def _configure(self, monkeypatch):
+        monkeypatch.setattr(config, "TELEGRAM_BOT_TOKEN", "sinov-token")
+        monkeypatch.setattr(config, "TELEGRAM_CHAT_ID", "42")
+
+    def test_delivered_message_returns_true(self, monkeypatch):
+        self._configure(monkeypatch)
+        monkeypatch.setattr(reporter.requests, "post",
+                            lambda *a, **k: self._Resp())
+        assert reporter.send("salom") is True
+
+    def test_rejected_message_returns_false(self, monkeypatch):
+        """Telegram 400/401 qaytarsa — xabar yetib bormagan."""
+        self._configure(monkeypatch)
+        monkeypatch.setattr(reporter.requests, "post",
+                            lambda *a, **k: self._Resp(ok=False, status_code=401,
+                                                       text="Unauthorized"))
+        assert reporter.send("salom") is False
+
+    def test_network_error_returns_false(self, monkeypatch):
+        self._configure(monkeypatch)
+
+        def boom(*a, **k):
+            raise ConnectionError("tarmoq yo'q")
+
+        monkeypatch.setattr(reporter.requests, "post", boom)
+        assert reporter.send("salom") is False
+
+    def test_missing_credentials_is_not_a_delivery(self, monkeypatch):
+        monkeypatch.setattr(config, "TELEGRAM_BOT_TOKEN", "")
+        monkeypatch.setattr(config, "TELEGRAM_CHAT_ID", "")
+        assert reporter.send("salom") is False
+
+    def test_one_failed_chunk_makes_the_whole_send_false(self, monkeypatch):
+        """Uzun hisobot bo'laklarga bo'linadi. Bittasi yetmasa, xabar
+        to'liq yetkazilmagan — "yubordim" deb hisoblash yolg'on bo'lardi."""
+        self._configure(monkeypatch)
+        calls = []
+
+        def post(*a, **k):
+            calls.append(1)
+            # Faqat ikkinchi bo'lak rad etiladi
+            return self._Resp(ok=len(calls) != 2, status_code=429)
+
+        monkeypatch.setattr(reporter.requests, "post", post)
+        text = "\n".join(f"qator {i} " + "x" * 60 for i in range(200))
+        assert len(reporter._split(text)) > 2
+        assert reporter.send(text) is False
+        # Bitta bo'lak yiqilgani qolganlarini to'xtatmasligi kerak
+        assert len(calls) == len(reporter._split(text))

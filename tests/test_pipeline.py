@@ -100,3 +100,66 @@ class TestNoVacanciesReport:
         health.expect("hh.uz")
         health.found("hh.uz", 63)
         assert "Manbalarda muammo" not in main._no_vacancies_report()
+
+
+class TestCrashMarker:
+    """Bitta yiqilish — bitta xabar.
+
+    Agent yiqilganda xabarni ikki joy yubora oladi: Python (main.py) va
+    Actions workflow'idagi zaxira bosqich. Belgi fayli ularni ajratadi —
+    aks holda foydalanuvchi bitta nosozlik uchun ikkita xabar olardi, yoki
+    (belgi juda erta qo'yilsa) umuman hech narsa olmasdi.
+    """
+
+    @pytest.fixture(autouse=True)
+    def marker(self, monkeypatch, tmp_path):
+        path = tmp_path / ".crash-notified"
+        monkeypatch.setattr(main, "CRASH_MARKER", str(path))
+        return path
+
+    @pytest.fixture
+    def failing_run(self, monkeypatch):
+        async def boom():
+            raise RuntimeError("sinov uchun ataylab yiqilish")
+
+        monkeypatch.setattr(main, "run", boom)
+
+    def test_delivered_report_leaves_the_marker(self, failing_run, marker, monkeypatch):
+        monkeypatch.setattr(reporter, "send", lambda text: True)
+        with pytest.raises(RuntimeError):
+            main.main()
+        assert marker.exists()
+
+    def test_undelivered_report_leaves_no_marker(self, failing_run, marker, monkeypatch):
+        """Telegram rad etgan bo'lsa zaxira bildirishnoma ishlashi shart —
+        shuning uchun belgi qo'yilmaydi."""
+        monkeypatch.setattr(reporter, "send", lambda text: False)
+        with pytest.raises(RuntimeError):
+            main.main()
+        assert not marker.exists()
+
+    def test_broken_messenger_leaves_no_marker(self, failing_run, marker, monkeypatch):
+        def broken_send(text):
+            raise ConnectionError("Telegram ham yiqildi")
+
+        monkeypatch.setattr(reporter, "send", broken_send)
+        with pytest.raises(RuntimeError):
+            main.main()
+        assert not marker.exists()
+
+    def test_unwritable_marker_does_not_hide_the_original_error(
+            self, failing_run, monkeypatch, tmp_path):
+        """Belgi yozilmasa eng yomoni takroriy xabar keladi — asl istisno
+        baribir ko'tarilishi kerak."""
+        monkeypatch.setattr(main, "CRASH_MARKER", str(tmp_path / "yoq" / "belgi"))
+        monkeypatch.setattr(reporter, "send", lambda text: True)
+        with pytest.raises(RuntimeError):
+            main.main()
+
+    def test_a_healthy_run_leaves_no_marker(self, marker, monkeypatch):
+        async def fine():
+            return None
+
+        monkeypatch.setattr(main, "run", fine)
+        main.main()
+        assert not marker.exists()

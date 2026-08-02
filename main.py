@@ -5,6 +5,7 @@ Har kuni cron/Railway orqali avtomatik ishlaydi.
 """
 import asyncio
 import logging
+import pathlib
 
 import config
 import health
@@ -15,6 +16,24 @@ from scoring import keyword_scorer, ai_scorer, vacancy_filter, ai_filter
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(name)s] %(message)s")
 log = logging.getLogger("main")
+
+# Actions'dagi zaxira bildirishnoma shu faylni qidiradi (qarang:
+# .github/workflows/daily-jobs.yml). Nomi o'zgarsa — o'sha yerda ham o'zgarsin.
+CRASH_MARKER = ".crash-notified"
+
+
+def _mark_crash_reported() -> None:
+    """Workflow'ga "yiqilish haqida xabar allaqachon ketdi" degan belgi qoldiradi.
+
+    Belgisiz zaxira bildirishnoma bitta yiqilish uchun ikkinchi xabar
+    yuborardi. Belgi faqat xabar **yetkazilganda** qo'yiladi: yuborishga
+    urinib, Telegram javob bermagan bo'lsa, zaxira o'z ishini qilishi kerak.
+    """
+    try:
+        pathlib.Path(CRASH_MARKER).write_text("reported", encoding="utf-8")
+    except OSError as e:
+        # Yomon holat emas: eng ko'pi bilan bitta takroriy xabar keladi
+        log.warning("Belgi fayli yozilmadi (%s) — Actions takroriy xabar yuborishi mumkin", e)
 
 
 def _no_vacancies_report() -> str:
@@ -113,9 +132,11 @@ def main() -> None:
     except Exception as e:
         log.exception("Agent yiqildi")
         try:
-            reporter.send(reporter.build_crash_report(e))
+            if reporter.send(reporter.build_crash_report(e)):
+                _mark_crash_reported()
         except Exception:
-            # Xabarchi ham yiqilsa — asl xato yo'qolmasin, faqat loglaymiz
+            # Xabarchi ham yiqilsa — asl xato yo'qolmasin, faqat loglaymiz.
+            # Belgi qo'yilmaydi: xabarni Actions'dagi zaxira yuborishi kerak.
             log.exception("Yiqilish haqida xabar yuborib bo'lmadi")
         raise  # Actions run'i ham muvaffaqiyatsiz deb belgilansin
 

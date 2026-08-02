@@ -13,6 +13,9 @@ __pycache__/
 *.session
 *.session-journal
 
+# Yiqilish belgisi — main.py qoldiradi, workflow o'qiydi (vaqtinchalik)
+.crash-notified
+
 # Database
 *.db
 *.sqlite3

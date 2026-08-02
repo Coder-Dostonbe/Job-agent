@@ -9,7 +9,10 @@ on:
 jobs:
   run-agent:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    # Ish darajasidagi limit — oxirgi to'siq. Asosiy limit agent bosqichida
+    # turadi (pastda), chunki ish butunlay bekor qilinsa keyingi qadamlar
+    # ishlashiga kafolat yo'q — bildirishnoma ham yuborilmay qolardi.
+    timeout-minutes: 20
 
     steps:
       - name: Checkout code
@@ -25,6 +28,10 @@ jobs:
         run: pip install -r requirements.txt
 
       - name: Run job search agent
+        id: agent
+        # Agent osilib qolsa (masalan hh.uz javob bermay tursa) shu bosqich
+        # yiqiladi, ish esa davom etadi va quyidagi bildirishnoma jo'naydi.
+        timeout-minutes: 15
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
@@ -35,3 +42,47 @@ jobs:
           # Runner har safar toza mashina — tarix Postgres'da saqlanadi
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
         run: python main.py
+
+      # Zaxira bildirishnoma.
+      #
+      # Agent Python ichida yiqilsa, xabarni o'zi yuboradi (main.py). Ammo run
+      # undan OLDIN ham yiqilishi mumkin: `pip install` sinadi, secret o'chib
+      # ketadi, Python versiyasi ko'chadi, runner limitga uriladi, timeout
+      # jarayonni o'ldiradi. O'sha holatlarda Python umuman ishga tushmaydi va
+      # Telegram butunlay jim qoladi — nosozlikni bilishning yagona yo'li
+      # Actions tabini ochib ko'rish edi. Ya'ni ertalab xabar kelmasa,
+      # "bugun ish yo'q" bilan "agent buzuq" bir xil ko'rinardi.
+      - name: Notify on failure
+        if: failure() || cancelled()
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          AGENT_OUTCOME: ${{ steps.agent.outcome }}
+        run: |
+          # Agent xabarni o'zi yetkazgan bo'lsa — takrorlamaymiz (main.py)
+          if [ -f .crash-notified ]; then
+            echo "Agent allaqachon xabar berdi — zaxira o'tkazib yuborildi"
+            exit 0
+          fi
+          if [ -z "$TELEGRAM_BOT_TOKEN" ] || [ -z "$TELEGRAM_CHAT_ID" ]; then
+            echo "::warning::Telegram secret'lari yo'q — bildirishnoma yuborilmadi"
+            exit 0
+          fi
+          case "$AGENT_OUTCOME" in
+            failure)   stage="agent ishlayotganda yiqildi yoki 15 daqiqa limitiga urildi" ;;
+            cancelled) stage="run bekor qilindi (ish darajasidagi limit yoki qo'lda to'xtatish)" ;;
+            "")        stage="agent umuman ishga tushmadi — checkout/Python/pip bosqichi yiqildi" ;;
+            *)         stage="run muvaffaqiyatsiz tugadi" ;;
+          esac
+          run_url="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+          text=$(printf '%s\n%s\n\n%s' \
+            "🚨 Kunlik agent ishlamadi — bugun hisobot yo'q." \
+            "Sabab: ${stage}." \
+            "Log: ${run_url}")
+          # `-f` yo'q: Telegram xatosini ham ko'rmoqchimiz, o'chirib emas
+          curl -sS -m 20 -X POST \
+            "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
+            -d chat_id="${TELEGRAM_CHAT_ID}" \
+            -d disable_web_page_preview=true \
+            --data-urlencode text="${text}" \
+            -o /dev/null -w 'Telegram javobi: HTTP %{http_code}\n'

@@ -64,6 +64,20 @@ And if the agent crashes outright, it sends the reason before dying, then
 re-raises so the Actions run is marked failed too. Silence is never the way
 you find out something broke.
 
+That still left one gap, because the crash report is written in Python: if the
+run dies *before* Python starts — `pip install` fails, a secret is rotated
+away, the runner hits a limit, the step times out — nothing sends anything, and
+a morning with no message looks exactly like a quiet job market. So the
+workflow carries its own fallback notification (`if: failure() || cancelled()`)
+that names the stage that broke and links the run log. The two never double up:
+`main.py` leaves a `.crash-notified` marker only when Telegram actually
+*accepted* the message, and the workflow step stays quiet when it finds one.
+
+> **One silence remains.** GitHub disables scheduled workflows after 60 days
+> with no repository activity. No run means no failure, so no notification can
+> fire — nothing inside the repo can detect this. Check the Actions tab if the
+> daily message ever stops arriving entirely.
+
 ## Setup
 
 ```bash
@@ -193,6 +207,11 @@ and can also be triggered by hand from the Actions tab.
    `TELEGRAM_CHAT_ID`, `TG_API_ID`, `TG_API_HASH`, `TG_SESSION_STRING`,
    `DATABASE_URL`, and `ANTHROPIC_API_KEY`.
 3. Adjust the `cron:` line if you want a different time.
+
+If a run fails at any stage you get a Telegram message with the reason and a
+link to the log — see [Source diagnostics](#how-it-works) above. The agent step
+has its own 15-minute limit, deliberately shorter than the job's 20, so that a
+hung run still leaves time for the notification step to run.
 
 ## Example report
 
