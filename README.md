@@ -109,9 +109,27 @@ one twice. Two backends:
 - **SQLite** (`vacancies.db`) — the fallback when `DATABASE_URL` is empty. Fine
   for running locally; nothing to set up.
 
-The table is created on first use. If Postgres is unreachable the agent logs the
-error and falls back to SQLite rather than failing — you still get the report,
-but it may repeat vacancies until the connection is fixed.
+The table is created on first use. If Postgres is unreachable the agent retries
+a few times (serverless databases are slow to wake), then falls back to SQLite
+rather than failing — you still get the report, but it may repeat vacancies
+until the connection is fixed.
+
+That fallback is **reported, not silent**. The health line names the backend
+actually in use, and a warning spells out the consequence:
+
+```
+🩺 Manbalar: hh.uz 64 ✅ | olx.uz 41 ✅ | storage sqlite (zaxira) ⚠️
+
+⚠️ Manbalarda muammo:
+⚠️ storage: Postgres ishlamadi, SQLite'ga o'tildi (Actions'da SQLite fayli
+   run tugashi bilan o'chadi) — tarix o'qilmadi, ko'rilgan e'lonlar takror
+   kelishi mumkin. Sabab: ConnectionTimeout: connection timeout expired
+```
+
+Running on Actions with no `DATABASE_URL` at all is flagged the same way: the
+runner's disk is wiped after every job, so history is never kept and the same
+vacancies arrive every morning. A failed *write* never costs you the report —
+the digest is sent anyway, with the warning attached.
 
 ## Configuration (`config.py`)
 
@@ -122,6 +140,7 @@ but it may repeat vacancies until the connection is fixed.
 | `HH_AREA_ID` | hh.uz region id (`97` = Uzbekistan) |
 | `HH_DESC_LIMIT` | How many hh.uz vacancies get their full text fetched (one request each) |
 | `HH_DESC_MIN_RATIO` | Warn if fewer than this share of descriptions loaded — an unscored vacancy is a silently useless one |
+| `DB_CONNECT_RETRIES` / `DB_CONNECT_TIMEOUT` / `DB_RETRY_DELAY` | Postgres connection attempts before falling back to SQLite |
 | `TG_CHANNELS` | Channel usernames to watch, without `@` |
 | `TG_LOOKBACK_HOURS` | How far back to read each channel |
 | `OLX_URLS` | OLX search pages to scrape |
@@ -166,7 +185,7 @@ and the labels in `reporter.py` if you want it in another language.
 main.py                     pipeline
 config.py                   profile, sources, limits
 health.py                   per-source status + failure alerts
-storage.py                  SQLite history + URL dedupe
+storage.py                  Postgres/SQLite history + URL dedupe
 reporter.py                 Telegram delivery
 create_session_qr.py        one-time Telethon session generator
 collectors/  hh.py          hh.uz search page

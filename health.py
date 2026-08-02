@@ -25,7 +25,7 @@ from dataclasses import dataclass, field
 log = logging.getLogger("health")
 
 # Xato matnini logda to'liq qoldiramiz, hisobotga esa qisqartirib chiqaramiz
-ERROR_SNIPPET = 160
+ERROR_SNIPPET = 240
 
 
 @dataclass
@@ -35,6 +35,11 @@ class SourceHealth:
     kept: int = 0
     errors: list[str] = field(default_factory=list)
     skipped: str = ""  # bo'sh bo'lmasa — manba umuman ishga tushmadi
+    # Quyidagi ikkisi sanoq bilan o'lchanmaydigan komponentlar uchun (ombor
+    # kabi): u "nechta e'lon qaytardi" degan savolga javob bermaydi, uning
+    # holati — qaysi backend ishlayotgani.
+    live: bool = False
+    detail: str = ""  # xulosa qatorida son o'rniga chiqadi
 
     @property
     def status(self) -> str:
@@ -43,7 +48,9 @@ class SourceHealth:
         if self.errors:
             # Xato bor-u natija ham bor — qisman ishladi (masalan 6 kanaldan
             # bittasi o'qilmadi). Natija umuman yo'q bo'lsa — to'liq yiqilgan.
-            return "degraded" if self.scanned else "failed"
+            return "degraded" if (self.scanned or self.live) else "failed"
+        if self.live:
+            return "ok"  # sanoqsiz komponent: ishladi, xato yo'q
         if not self.scanned:
             # Xatosiz nol natija — eng shubhali holat: so'rov muvaffaqiyatli
             # ketdi, lekin hech nima qaytmadi. Odatda selector/tuzilma o'zgargan.
@@ -93,6 +100,19 @@ def found(source: str, kept: int, scanned: int | None = None) -> None:
     entry.scanned += kept if scanned is None else scanned
 
 
+def alive(source: str, detail: str = "") -> None:
+    """Sanoq bilan o'lchanmaydigan komponent ishlayotganini qayd etadi.
+
+    Ombor uchun kerak: `found()` unga to'g'ri kelmaydi (u e'lon qaytarmaydi),
+    lekin qayd etilmasa "xatosiz 0 ta natija" deb noto'g'ri ogohlantiriladi.
+    `detail` — xulosa qatorida son o'rniga ko'rinadigan matn ("postgres").
+    """
+    entry = _entry(source)
+    entry.live = True
+    if detail:
+        entry.detail = detail
+
+
 def error(source: str, message: object) -> None:
     _entry(source).errors.append(str(message))
 
@@ -110,7 +130,8 @@ def summary() -> str:
     if not _sources:
         return ""
     parts = [
-        f"{s.name} {s.kept} {STATUS_EMOJI[s.status]}" for s in _sources.values()
+        f"{s.name} {s.detail or s.kept} {STATUS_EMOJI[s.status]}"
+        for s in _sources.values()
     ]
     return "🩺 Manbalar: " + " | ".join(parts)
 
@@ -129,6 +150,9 @@ def alerts() -> list[str]:
                 f"❌ {s.name}: 0 ta natija, {len(s.errors)} ta xato — "
                 f"{s.errors[0][:ERROR_SNIPPET]}"
             )
+        elif status == "degraded" and s.live:
+            # Sanoqsiz komponent — "N ta topildi" ma'nosiz, xatoning o'zi gapiradi
+            out.append(f"⚠️ {s.name}: {s.errors[0][:ERROR_SNIPPET]}")
         elif status == "degraded":
             out.append(
                 f"⚠️ {s.name}: {s.kept} ta topildi, lekin {len(s.errors)} ta xato — "

@@ -102,5 +102,11 @@ ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
 # uchun jadval bo'yicha ishlaganda DATABASE_URL bo'lishi shart.
 DATABASE_URL = os.getenv("DATABASE_URL", "")
 DB_PATH = os.getenv("DB_PATH", "vacancies.db")
+# Neon kabi serverless bazalar uzoq turgandan keyin "uyg'onadi" — birinchi
+# ulanish sekin bo'lishi normal. Bitta timeout uchun butun tarixni yo'qotib,
+# SQLite'ga tushib qolmaslik uchun qayta urinamiz.
+DB_CONNECT_RETRIES = 3   # jami necha marta urinish
+DB_CONNECT_TIMEOUT = 10  # bitta urinishni kutish, soniya
+DB_RETRY_DELAY = 2.0     # urinishlar orasidagi pauza (har safar ko'payadi)
 # Telethon string session (GitHub Actions uchun — phone auth kerak emas)
 TG_SESSION_STRING = os.getenv("TG_SESSION_STRING", "")
