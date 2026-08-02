@@ -113,5 +113,14 @@ DB_PATH = os.getenv("DB_PATH", "vacancies.db")
 DB_CONNECT_RETRIES = 3   # jami necha marta urinish
 DB_CONNECT_TIMEOUT = 10  # bitta urinishni kutish, soniya
 DB_RETRY_DELAY = 2.0     # urinishlar orasidagi pauza (har safar ko'payadi)
+
+# Keskin pasayishni sezish (trend.py). "0 ta natija" ni health.py ushlaydi;
+# bu yerdagi chegaralar esa "nol emas, lekin odatdagidan ancha kam" holati
+# uchun. Ular ataylab konservativ — noto'g'ri ogohlantirish foydalanuvchini
+# butun diagnostikaga ishonmaydigan qilib qo'yadi.
+TREND_HISTORY_RUNS = 7   # bazaviy chiziq necha oxirgi run'dan olinadi
+TREND_MIN_RUNS = 3       # shundan kam tarix bo'lsa taqqoslanmaydi
+TREND_DROP_RATIO = 0.5   # medianadan shu ulushdan past bo'lsa — ogohlantirish
+TREND_MIN_BASELINE = 8   # kam natijali manbalarda tebranish normal, jim turamiz
 # Telethon string session (GitHub Actions uchun — phone auth kerak emas)
 TG_SESSION_STRING = os.getenv("TG_SESSION_STRING", "")

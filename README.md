@@ -60,6 +60,32 @@ missing credentials, the report also carries an explicit warning block. See
 `health.py` — the collectors report into it, `reporter.build_health_block()`
 renders it.
 
+**Zero is the easy case.** Scrapers usually break halfway: a section of the
+page changes, the collector still parses the rest, and hh.uz returns 6 listings
+instead of the usual 63. No exception, no error, a green check — and a
+half-empty report that reads like a slow week. Whether 6 is low is not knowable
+from one run, so `trend.py` records each run's per-source count and compares
+today against the **median** of the last seven:
+
+```
+🩺 Manbalar: hh.uz 6 ⚠️ | olx.uz 40 ✅ | telegram 5 ✅
+
+⚠️ Manbalarda muammo:
+⚠️ hh.uz: odatdagidan keskin kam: 6 ta (oxirgi 7 run medianasi — 60 ta).
+   Sayt tuzilishi qisman o'zgargan bo'lishi mumkin.
+```
+
+Median rather than mean, because a single failed day would drag a mean down far
+enough to mask the next day's real drop. The thresholds are deliberately
+conservative — a source that normally returns 4 and returns 1 today says
+nothing, and nothing is compared until there is enough history. A false alarm
+every morning would teach you to ignore the diagnostics entirely.
+
+Its honest limit: a source that stays low eventually becomes the new median.
+With a seven-run window that takes **four warnings** before the alert goes
+quiet (measured, and pinned by a test). Four messages is enough to act on; if
+nobody acts, silence returns.
+
 And if the agent crashes outright, it sends the reason before dying, then
 re-raises so the Actions run is marked failed too. Silence is never the way
 you find out something broke.
@@ -187,6 +213,8 @@ the digest is sent anyway, with the warning attached.
 | `HH_DESC_LIMIT` | How many hh.uz vacancies get their full text fetched (one request each) |
 | `HH_DESC_MIN_RATIO` | Warn if fewer than this share of descriptions loaded — an unscored vacancy is a silently useless one |
 | `DB_CONNECT_RETRIES` / `DB_CONNECT_TIMEOUT` / `DB_RETRY_DELAY` | Postgres connection attempts before falling back to SQLite |
+| `TREND_HISTORY_RUNS` / `TREND_MIN_RUNS` | Size of the baseline window, and how much history is needed before comparing at all |
+| `TREND_DROP_RATIO` / `TREND_MIN_BASELINE` | Warn below this share of the median; ignore sources that normally return fewer than this |
 | `TG_CHANNELS` | Channel usernames to watch, without `@` |
 | `TG_LOOKBACK_HOURS` | How far back to read each channel |
 | `OLX_URLS` | OLX search pages to scrape |
@@ -237,6 +265,7 @@ and the labels in `reporter.py` if you want it in another language.
 main.py                     pipeline
 config.py                   profile, sources, limits
 health.py                   per-source status + failure alerts
+trend.py                    catches partial collapses a status check cannot see
 storage.py                  Postgres/SQLite history + URL dedupe
 reporter.py                 Telegram delivery
 create_session_qr.py        one-time Telethon session generator

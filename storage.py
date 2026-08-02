@@ -26,7 +26,8 @@ log = logging.getLogger("storage")
 
 SOURCE = "storage"
 
-DDL = """
+DDL = (
+    """
     CREATE TABLE IF NOT EXISTS vacancies (
         url TEXT PRIMARY KEY,
         source TEXT,
@@ -35,7 +36,17 @@ DDL = """
         ai_score INTEGER,
         first_seen TEXT
     )
-"""
+    """,
+    # Har run'da har manba nechta e'lon qaytargani. Kundalik ishga kerak emas —
+    # faqat keskin pasayishni sezish uchun (qarang: trend.py). Kuniga ~4 qator.
+    """
+    CREATE TABLE IF NOT EXISTS source_runs (
+        source TEXT,
+        ts TEXT,
+        scanned INTEGER
+    )
+    """,
+)
 
 # Postgres ishlamay qolsa SQLite'ga tushamiz: hisobot kelmay qolgandan ko'ra
 # takroriy e'lonli hisobot yaxshiroq. Lekin bu tushish **ko'rinishi** shart —
@@ -150,7 +161,8 @@ def _db(op: str = "read"):
     conn, ph = _connect(op)
     try:
         cur = conn.cursor()  # psycopg'da executemany faqat kursorda bor
-        cur.execute(DDL)
+        for statement in DDL:
+            cur.execute(statement)
         conn.commit()
         yield cur, ph
         conn.commit()
@@ -222,6 +234,50 @@ def save(vacancies: list[dict]) -> None:
             f"{len(rows)} ta vakansiya tarixga yozilmadi — ertaga qayta "
             f"yuboriladi. Sabab: {type(e).__name__}: {e}",
         )
+
+
+def record_counts(counts: dict[str, int]) -> None:
+    """Bugungi run'da har manba nechta e'lon qaytarganini tarixga yozadi.
+
+    Bu yozuvlarsiz keskin pasayishni sezib bo'lmaydi: taqqoslash uchun
+    "odatda qancha bo'ladi" degan chiziq kerak, uni esa faqat o'tgan
+    run'lardan olish mumkin (qarang: trend.py).
+    """
+    if not counts:
+        return
+    now = datetime.now().isoformat()
+    rows = [(source, now, int(n)) for source, n in counts.items()]
+    try:
+        with _db("write") as (cur, ph):
+            cur.executemany(
+                f"INSERT INTO source_runs VALUES ({ph},{ph},{ph})", rows
+            )
+    except Exception as e:
+        # Hisobotga ogohlantirish qo'shmaymiz: ombor yiqilgan bo'lsa,
+        # bu haqda `_report_once` allaqachon gapirgan. Bu yerda takrorlash
+        # foydalanuvchiga bir nosozlik uchun ikkinchi qatorni ko'rsatardi.
+        log.warning("Trend uchun sonlar yozilmadi: %s: %s", type(e).__name__, e)
+
+
+def recent_counts(limit: int) -> dict[str, list[int]]:
+    """Oxirgi `limit` ta run'dagi sonlar, manba bo'yicha (eng yangisi birinchi).
+
+    Tarix yo'q bo'lsa (birinchi run, yoki Postgres o'rniga bir martalik
+    SQLite) bo'sh lug'at qaytadi — bu holda taqqoslash o'tkazib yuboriladi.
+    """
+    try:
+        with _db("read") as (cur, _):
+            cur.execute("SELECT source, scanned FROM source_runs ORDER BY ts DESC")
+            rows = cur.fetchall()
+    except Exception as e:
+        log.warning("Trend tarixi o'qilmadi: %s: %s", type(e).__name__, e)
+        return {}
+    out: dict[str, list[int]] = {}
+    for source, scanned in rows:
+        bucket = out.setdefault(source, [])
+        if len(bucket) < limit:
+            bucket.append(int(scanned))
+    return out
 
 
 def skill_stats(vacancies: list[dict]) -> dict[str, int]:

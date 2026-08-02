@@ -35,6 +35,9 @@ class SourceHealth:
     kept: int = 0
     errors: list[str] = field(default_factory=list)
     skipped: str = ""  # bo'sh bo'lmasa — manba umuman ishga tushmadi
+    # Xato emas, lekin e'tibor talab qiladigan holat: hech nima yiqilmagan,
+    # natija ham bor, ammo u odatdagidan keskin farq qiladi (qarang: trend.py).
+    warnings: list[str] = field(default_factory=list)
     # Quyidagi ikkisi sanoq bilan o'lchanmaydigan komponentlar uchun (ombor
     # kabi): u "nechta e'lon qaytardi" degan savolga javob bermaydi, uning
     # holati — qaysi backend ishlayotgani.
@@ -49,12 +52,15 @@ class SourceHealth:
             # Xato bor-u natija ham bor — qisman ishladi (masalan 6 kanaldan
             # bittasi o'qilmadi). Natija umuman yo'q bo'lsa — to'liq yiqilgan.
             return "degraded" if (self.scanned or self.live) else "failed"
-        if self.live:
-            return "ok"  # sanoqsiz komponent: ishladi, xato yo'q
-        if not self.scanned:
+        if not self.live and not self.scanned:
             # Xatosiz nol natija — eng shubhali holat: so'rov muvaffaqiyatli
             # ketdi, lekin hech nima qaytmadi. Odatda selector/tuzilma o'zgargan.
             return "empty"
+        if self.warnings:
+            # Ishladi, natija ham bor, xato ham yo'q — lekin natija shubhali.
+            return "degraded"
+        if self.live:
+            return "ok"  # sanoqsiz komponent: ishladi, xato yo'q
         if not self.kept:
             return "filtered"  # o'qildi, lekin mos kelmadi — normal
         return "ok"
@@ -117,6 +123,16 @@ def error(source: str, message: object) -> None:
     _entry(source).errors.append(str(message))
 
 
+def warn(source: str, message: object) -> None:
+    """Xato bo'lmagan, lekin ko'rsatilishi kerak bo'lgan holat.
+
+    `error()` dan farqi — hech narsa yiqilmagan. Masalan hh.uz javob berdi,
+    xato ham qaytarmadi, lekin odatdagi 63 ta o'rniga 6 ta e'lon qaytardi:
+    texnik jihatdan hammasi joyida, amalda esa manba yarim sinib turibdi.
+    """
+    _entry(source).warnings.append(str(message))
+
+
 def skipped(source: str, reason: str) -> None:
     _entry(source).skipped = reason
 
@@ -141,6 +157,9 @@ def alerts() -> list[str]:
     out = []
     for s in _sources.values():
         status = s.status
+        # Ogohlantirishlar statusdan mustaqil chiqadi: ular xato bilan birga
+        # ham kelishi mumkin va ikkalasi ham ko'rinishi kerak.
+        out.extend(f"⚠️ {s.name}: {w[:ERROR_SNIPPET]}" for w in s.warnings)
         if status not in BAD_STATUSES:
             continue
         if status == "skipped":
@@ -150,19 +169,20 @@ def alerts() -> list[str]:
                 f"❌ {s.name}: 0 ta natija, {len(s.errors)} ta xato — "
                 f"{s.errors[0][:ERROR_SNIPPET]}"
             )
-        elif status == "degraded" and s.live:
-            # Sanoqsiz komponent — "N ta topildi" ma'nosiz, xatoning o'zi gapiradi
-            out.append(f"⚠️ {s.name}: {s.errors[0][:ERROR_SNIPPET]}")
-        elif status == "degraded":
-            out.append(
-                f"⚠️ {s.name}: {s.kept} ta topildi, lekin {len(s.errors)} ta xato — "
-                f"{s.errors[0][:ERROR_SNIPPET]}"
-            )
-        else:  # empty
+        elif status == "empty":
             out.append(
                 f"⚠️ {s.name}: xatosiz 0 ta e'lon qaytardi — "
                 f"sayt tuzilishi o'zgargan yoki bloklangan bo'lishi mumkin"
             )
+        elif s.errors and s.live:
+            # Sanoqsiz komponent — "N ta topildi" ma'nosiz, xatoning o'zi gapiradi
+            out.append(f"⚠️ {s.name}: {s.errors[0][:ERROR_SNIPPET]}")
+        elif s.errors:
+            out.append(
+                f"⚠️ {s.name}: {s.kept} ta topildi, lekin {len(s.errors)} ta xato — "
+                f"{s.errors[0][:ERROR_SNIPPET]}"
+            )
+        # Faqat ogohlantirish sababli "degraded" bo'lsa — yuqorida chiqib bo'ldi
     return out
 
 

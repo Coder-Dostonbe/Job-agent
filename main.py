@@ -11,6 +11,7 @@ import config
 import health
 import storage
 import reporter
+import trend
 from collectors import hh, olx, tg_channels
 from scoring import keyword_scorer, ai_scorer, vacancy_filter, ai_filter
 
@@ -54,6 +55,9 @@ async def run():
     vacancies += olx.collect()
     vacancies += await tg_channels.collect()
     log.info("Jami yig'ildi: %d", len(vacancies))
+    # Nol bo'lmagan, lekin odatdagidan keskin kam natijani sezadi — dedup'dan
+    # oldin, chunki taqqoslash manbaning xom qaytarganiga qarab bo'lishi kerak
+    trend.check_and_record()
     health.log_alerts()
 
     # 2. YANGILARNI AJRATISH — filtrdan OLDIN.
