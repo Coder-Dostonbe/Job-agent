@@ -7,6 +7,7 @@ shuning uchun jadval bo'yicha ishlaganda Postgres kerak. Lokal testda esa
 hech narsa sozlamasdan SQLite ishlayveradi.
 """
 import logging
+import re
 import sqlite3
 from contextlib import contextmanager
 from datetime import datetime
@@ -57,16 +58,41 @@ def _db():
         conn.close()
 
 
+def _title_key(source: str, title: str) -> str:
+    """Sarlavha dedupi uchun kalit. Tinish belgilari, emoji va ortiqcha
+    bo'shliqlar tashlanadi: "Python dasturchi!!!" == "python  dasturchi"."""
+    norm = re.sub(r"[^\w]+", " ", (title or "").lower(), flags=re.UNICODE).strip()
+    return f"{source}|{norm}" if norm else ""
+
+
 def filter_new(vacancies: list[dict]) -> list[dict]:
-    """Faqat oldin ko'rilmagan vakansiyalarni qaytaradi (run ichida ham dedup)."""
+    """Faqat oldin ko'rilmagan vakansiyalarni qaytaradi (run ichida ham dedup).
+
+    Asosiy kalit — URL. `config.TITLE_DEDUP_SOURCES` dagi manbalar uchun
+    qo'shimcha ravishda sarlavha ham tekshiriladi: OLX'da bir e'lon qayta
+    joylanganda URL yangi bo'ladi, ya'ni URL dedupi uni ushlamaydi.
+    """
     with _db() as (cur, _):
-        cur.execute("SELECT url FROM vacancies")
-        seen = {row[0] for row in cur.fetchall()}
-    unique, out = set(), []
+        cur.execute("SELECT url, source, title FROM vacancies")
+        rows = cur.fetchall()
+    seen_urls = {r[0] for r in rows}
+    seen_titles = {
+        _title_key(r[1], r[2]) for r in rows
+        if r[1] in config.TITLE_DEDUP_SOURCES
+    } - {""}
+
+    new_urls, new_titles, out = set(), set(), []
     for v in vacancies:
-        if v["url"] and v["url"] not in seen and v["url"] not in unique:
-            unique.add(v["url"])
-            out.append(v)
+        if not v["url"] or v["url"] in seen_urls or v["url"] in new_urls:
+            continue
+        if v["source"] in config.TITLE_DEDUP_SOURCES:
+            key = _title_key(v["source"], v["title"])
+            if key and (key in seen_titles or key in new_titles):
+                log.info("Takror (sarlavha bo'yicha): %s", v["title"][:60])
+                continue
+            new_titles.add(key)
+        new_urls.add(v["url"])
+        out.append(v)
     return out
 
 

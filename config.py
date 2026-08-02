@@ -28,19 +28,31 @@ PROFILE = {
     ),
 }
 
-# Qidiruv so'rovlari (hh, olx uchun)
-SEARCH_QUERIES = ["python", "django", "backend"]
+# Qidiruv so'rovlari (hh, olx uchun).
+# "AI-разработчик" — vaybkoder yo'nalishi. Ataylab ruscha: hh.uz'da bozor shu
+# atamani ishlatadi ("AI-разработчик / вайбкодер"). Sinab ko'rilgan variantlar:
+#   "vibe coding" → 80 ta, lekin ko'pi axlat (PPC specialist, SEO, community mgr)
+#   "вайбкодер"   → 1 ta (juda tor)
+#   "AI-разработчик" → 7 ta, aniqligi eng yaxshisi ← tanlandi
+SEARCH_QUERIES = ["python", "django", "backend", "AI-разработчик"]
 
 # hh.uz sozlamalari
 HH_AREA_ID = "97"  # Uzbekistan
 HH_DESC_LIMIT = 25      # nechta vakansiyaning to'liq matni yuklansin (har biri +1 so'rov)
 HH_REQUEST_DELAY = 2.0  # so'rovlar orasidagi pauza, soniya (bot himoyasi uchun)
 
-# Kuzatiladigan Telegram ish kanallari (username, @siz)
+# Kuzatiladigan Telegram ish kanallari (username, @siz).
+# Yangi kanal qo'shishdan oldin tekshiring: t.me/s/<username> ochilishi va
+# oxirgi posti yaqin kunlarda bo'lishi kerak.
+# Olib tashlanganlar: "itjobsuz" (username mavjud emas),
+# "python_jobs_uz" (oxirgi post 2025-07-15 — kanal tashlab ketilgan).
 TG_CHANNELS = [
     "UstozShogird",
-    "itjobsuz",
-    "python_jobs_uz",
+    "uzdev_jobs",
+    "ishmi_ish",
+    "techjobs_vakansiya",
+    "ayti_jobs",
+    "frontEndJobo",
 ]
 TG_LOOKBACK_HOURS = 26  # oxirgi necha soatlik postlar o'qiladi
 
@@ -49,6 +61,12 @@ OLX_URLS = [
     "https://www.olx.uz/rabota/it-telekom-kompyutery/?q=python",
     "https://www.olx.uz/rabota/it-telekom-kompyutery/?q=django",
 ]
+
+# Sarlavha bo'yicha ham dedup qilinadigan manbalar. OLX'da bir e'lon o'chirilib
+# qayta joylanadi yoki "ko'tariladi" — URL o'zgaradi, sarlavha o'sha qoladi.
+# hh.uz uchun YOQMANG: u yerda turli kompaniyalar bir xil sarlavha bilan
+# ("Python разработчик") e'lon beradi, ular haqiqatan boshqa vakansiya.
+TITLE_DEDUP_SOURCES = {"olx.uz"}
 
 # Scoring
 AI_SCORE_THRESHOLD = 55
