@@ -40,6 +40,9 @@ SEARCH_QUERIES = ["python", "django", "backend", "AI-разработчик"]
 HH_AREA_ID = "97"  # Uzbekistan
 HH_DESC_LIMIT = 25      # nechta vakansiyaning to'liq matni yuklansin (har biri +1 so'rov)
 HH_REQUEST_DELAY = 2.0  # so'rovlar orasidagi pauza, soniya (bot himoyasi uchun)
+HH_DESC_MIN_RATIO = 0.7 # tavsiflarning shu ulushidan kami yuklansa — ogohlantirish.
+                        # Tavsifsiz vakansiya deyarli ballanmaydi (faqat sarlavha
+                        # qoladi), shuning uchun sekin degradatsiya ham ko'rinsin.
 
 # Kuzatiladigan Telegram ish kanallari (username, @siz).
 # Yangi kanal qo'shishdan oldin tekshiring: t.me/s/<username> ochilishi va

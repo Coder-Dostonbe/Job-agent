@@ -1,10 +1,13 @@
 """Kunlik hisobotni Telegram botga yuborish."""
 import logging
+import os
+import traceback
 from html import escape
 
 import requests
 
 import config
+import health
 
 log = logging.getLogger("reporter")
 
@@ -47,6 +50,53 @@ def select(scored: list[dict]) -> list[dict]:
     return picked
 
 
+def build_health_block() -> str:
+    """Manbalar holati — har hisobot oxirida.
+
+    Shu blok bo'lmasa "bugun ish yo'q" bilan "scraper sindi" bir xil ko'rinadi:
+    ikkalasida ham hisobot bo'sh keladi. Qarang: health.py.
+    """
+    lines = []
+    summary = health.summary()
+    if summary:
+        lines.append(escape(summary))
+    problems = health.alerts()
+    if problems:
+        lines.append("")
+        lines.append("⚠️ <b>Manbalarda muammo:</b>")
+        lines.extend(escape(p) for p in problems)
+    return "\n".join(lines)
+
+
+def build_crash_report(exc: BaseException) -> str:
+    """Agent butunlay yiqilganda Telegram'ga ketadigan xabar.
+
+    `health.py` manba darajasidagi jimgina yiqilishni yopdi, lekin run
+    darajasida teshik ochiq qolgan edi: pipeline'ning istalgan joyidagi
+    ushlanmagan istisno jarayonni o'ldirar, Telegram esa **umuman jim
+    qolardi**. Endi avval sabab yuboriladi, keyin istisno qayta ko'tariladi
+    (GitHub Actions run'i ham qizil bo'lsin).
+    """
+    lines = [
+        "🚨 <b>Agent yiqildi</b> — bugungi hisobot tayyorlanmadi.",
+        "",
+        f"<b>{escape(type(exc).__name__)}</b>: {escape(str(exc)[:300])}",
+    ]
+    frames = traceback.extract_tb(exc.__traceback__)
+    if frames:
+        last = frames[-1]  # xato aynan qayerda ko'tarilgani
+        lines.append(
+            f"📍 {escape(os.path.basename(last.filename))}:{last.lineno}"
+            f" — {escape(last.name)}()"
+        )
+    diagnostics = build_health_block()
+    if diagnostics:
+        # Qaysi manbalar ishga tushib ulgurgani — xatoni lokalizatsiya qiladi
+        lines.append("")
+        lines.append(diagnostics)
+    return "\n".join(lines)
+
+
 def build_report(shown: list[dict], stats: dict, total_new: int,
                  total_matched: int | None = None) -> str:
     """`shown` — ro'yxatga tushadiganlar (select natijasi),
@@ -75,6 +125,10 @@ def build_report(shown: list[dict], stats: dict, total_new: int,
     if stats:
         top = ", ".join(f"{k} ({n})" for k, n in list(stats.items())[:8])
         lines.append(f"📈 <b>Bugun eng ko'p so'ralgan skillar:</b> {top}")
+
+    diagnostics = build_health_block()
+    if diagnostics:
+        lines.append("\n" + diagnostics)
 
     return "\n".join(lines)
 

@@ -7,6 +7,7 @@ import asyncio
 import logging
 
 import config
+import health
 import storage
 import reporter
 from collectors import hh, olx, tg_channels
@@ -16,6 +17,17 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(name)s] %(message
 log = logging.getLogger("main")
 
 
+def _no_vacancies_report() -> str:
+    """"Bugun hech nima yo'q" xabari — manbalar holati bilan birga.
+
+    Diagnostikasiz bu xabar ikki xil holatni bir xil ko'rsatardi: haqiqatan
+    yangi vakansiya yo'q va scraper sinib qolgan. Endi farqi ko'rinadi.
+    """
+    text = "📊 Bugun yangi mos vakansiya topilmadi."
+    diagnostics = reporter.build_health_block()
+    return f"{text}\n\n{diagnostics}" if diagnostics else text
+
+
 async def run():
     # 1. YIG'ISH — uchala manba
     vacancies = []
@@ -23,6 +35,7 @@ async def run():
     vacancies += olx.collect()
     vacancies += await tg_channels.collect()
     log.info("Jami yig'ildi: %d", len(vacancies))
+    health.log_alerts()
 
     # 2. YANGILARNI AJRATISH — filtrdan OLDIN.
     # Sabab: bir e'lon OLX'ning ikkala qidiruvida (python, django) chiqishi
@@ -30,7 +43,7 @@ async def run():
     all_new = storage.filter_new(vacancies)
     log.info("Yangi (dedup'dan keyin): %d", len(all_new))
     if not all_new:
-        reporter.send("📊 Bugun yangi mos vakansiya topilmadi.")
+        reporter.send(_no_vacancies_report())
         return
 
     # 3. FAQAT ISH O'RINLARI — gibrid filtr (keyword + AI, qarang: TAKLIFLAR.md)
@@ -62,7 +75,7 @@ async def run():
     if not new:
         # Rad etilganlar ham bazaga yoziladi — ertaga AI'ga qayta yuborilmasin
         storage.save(all_new)
-        reporter.send("📊 Bugun yangi mos vakansiya topilmadi.")
+        reporter.send(_no_vacancies_report())
         return
 
     # 4. KEYWORD SCORING
@@ -92,5 +105,19 @@ async def run():
     log.info("Hisobot yuborildi ✅")
 
 
+def main() -> None:
+    """Agentni ishga tushiradi va yiqilsa jimgina o'lib qolmasligini kafolatlaydi."""
+    try:
+        asyncio.run(run())
+    except Exception as e:
+        log.exception("Agent yiqildi")
+        try:
+            reporter.send(reporter.build_crash_report(e))
+        except Exception:
+            # Xabarchi ham yiqilsa — asl xato yo'qolmasin, faqat loglaymiz
+            log.exception("Yiqilish haqida xabar yuborib bo'lmadi")
+        raise  # Actions run'i ham muvaffaqiyatsiz deb belgilansin
+
+
 if __name__ == "__main__":
-    asyncio.run(run())
+    main()

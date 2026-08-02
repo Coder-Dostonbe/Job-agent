@@ -29,6 +29,22 @@ website" service ads, course advertising. The filter runs in two stages:
 If the API key is missing or a request fails, the filter **fails open**: the post
 is kept and the scoring stage decides. The agent never stops because of AI.
 
+**Source diagnostics.** Every report ends with a health line, so a broken
+scraper never looks like a quiet job market:
+
+```
+🩺 Manbalar: hh.uz 63 ✅ | olx.uz 41 ✅ | telegram 6 ✅
+```
+
+If a source returns nothing without raising, fails outright, or is skipped for
+missing credentials, the report also carries an explicit warning block. See
+`health.py` — the collectors report into it, `reporter.build_health_block()`
+renders it.
+
+And if the agent crashes outright, it sends the reason before dying, then
+re-raises so the Actions run is marked failed too. Silence is never the way
+you find out something broke.
+
 ## Setup
 
 ```bash
@@ -105,6 +121,7 @@ but it may repeat vacancies until the connection is fixed.
 | `SEARCH_QUERIES` | Search terms for hh.uz and OLX |
 | `HH_AREA_ID` | hh.uz region id (`97` = Uzbekistan) |
 | `HH_DESC_LIMIT` | How many hh.uz vacancies get their full text fetched (one request each) |
+| `HH_DESC_MIN_RATIO` | Warn if fewer than this share of descriptions loaded — an unscored vacancy is a silently useless one |
 | `TG_CHANNELS` | Channel usernames to watch, without `@` |
 | `TG_LOOKBACK_HOURS` | How far back to read each channel |
 | `OLX_URLS` | OLX search pages to scrape |
@@ -148,6 +165,7 @@ and the labels in `reporter.py` if you want it in another language.
 ```
 main.py                     pipeline
 config.py                   profile, sources, limits
+health.py                   per-source status + failure alerts
 storage.py                  SQLite history + URL dedupe
 reporter.py                 Telegram delivery
 create_session_qr.py        one-time Telethon session generator

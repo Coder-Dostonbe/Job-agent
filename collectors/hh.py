@@ -20,9 +20,11 @@ import requests
 from bs4 import BeautifulSoup
 
 import config
+import health
 
 log = logging.getLogger("hh")
 
+SOURCE = "hh.uz"
 SEARCH_URL = "https://hh.uz/search/vacancy"
 HEADERS = {
     "User-Agent": (
@@ -108,6 +110,7 @@ def fetch(query: str) -> list[dict]:
             search = _state(resp.text)["vacancySearchResult"]
         except Exception as e:
             log.error("hh so'rovida xato (%s, page %s): %s", query, page, e)
+            health.error(SOURCE, f"qidiruv '{query}' (page {page}): {e}")
             break
 
         results.extend(_clean(v) for v in search.get("vacancies", []))
@@ -145,7 +148,7 @@ def _fill_descriptions(vacancies: list[dict]) -> None:
             "Tavsif limiti: %d ta vakansiyadan %d tasi to'liq yuklanadi",
             len(vacancies), len(capped),
         )
-    failures = 0
+    failures, loaded, aborted = 0, 0, False
     for v in capped:
         text = _description(v["url"])
         if text is None:
@@ -153,13 +156,48 @@ def _fill_descriptions(vacancies: list[dict]) -> None:
             failures += 1
             if failures >= 3:
                 log.warning("Tavsif yuklash to'xtatildi (%d marta xato)", failures)
-                return
+                aborted = True
+                break
             continue
         failures = 0
         v["text"] = text
+        # Bo'sh matn = so'rov o'tdi, lekin selector hech nima topmadi.
+        # Bu ham yuklanmagan hisoblanadi — pastdagi nisbat uni ushlaydi.
+        if text:
+            loaded += 1
+
+    _report_description_health(len(capped), loaded, aborted)
+
+
+def _report_description_health(planned: int, loaded: int, aborted: bool) -> None:
+    """Tavsif yuklash sifatini `health` ga qayd etadi.
+
+    Ketma-ket 3 ta xato (`aborted`) darrov ko'zga tashlanadi. Sekin
+    degradatsiya esa — 25 tadan 12 tasi tarqoq yiqilishi, yoki
+    `[data-qa=vacancy-description]` selektori o'zgarib hammasi bo'sh
+    qaytishi — ilgari umuman sezilmasdi: manba baribir `ok ✅` bo'lib
+    turardi, hisobot esa deyarli ballanmagan vakansiyalar bilan kelardi.
+    """
+    if not planned:
+        return
+    ratio = loaded / planned
+    log.info("hh.uz tavsiflari: %d/%d (%.0f%%)", loaded, planned, ratio * 100)
+    if aborted:
+        health.error(
+            SOURCE,
+            f"tavsif yuklash to'xtatildi: {planned} tadan {loaded} tasi yuklandi "
+            f"(ketma-ket 3 marta xato — IP bloklangan bo'lishi mumkin)",
+        )
+    elif ratio < config.HH_DESC_MIN_RATIO:
+        health.error(
+            SOURCE,
+            f"tavsiflarning atigi {loaded}/{planned} tasi yuklandi ({ratio:.0%}) — "
+            f"tavsifsiz vakansiya to'g'ri ballanmaydi",
+        )
 
 
 def collect() -> list[dict]:
+    health.expect(SOURCE)
     by_url = {}
     for q in config.SEARCH_QUERIES:
         items = fetch(q)
@@ -167,5 +205,7 @@ def collect() -> list[dict]:
         for v in items:
             by_url.setdefault(v["url"], v)  # so'rovlar kesishadi
     all_items = list(by_url.values())
+    # hh.uz qidiruv natijasi allaqachon so'rovga mos — hammasi natijaga kiradi
+    health.found(SOURCE, len(all_items))
     _fill_descriptions(all_items)
     return all_items
