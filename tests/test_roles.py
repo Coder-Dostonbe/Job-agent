@@ -51,6 +51,27 @@ class TestRoleCheck:
         """Sabab qaytariladi — jimgina filtr eng yomon filtr."""
         assert vacancy_filter.role_check(title) == expected
 
+    @pytest.mark.parametrize("title", [
+        "Портфельный аналитик",
+        "Стажер-аналитик",
+        "Аналитик SAP",
+        "Ассистент преподавателя по роботехнике",
+        "Универсальный Преподаватель",
+        "AI Governance Specialist",
+        "Администратор Jira, Confluence (г. Ташкент)",
+        "Инженер отдела мониторинга информационной безопасности",
+        "Kiberxavfsizlik bo'yicha yetakchi muhandis",
+        "Senior QA Automation Engineer (Generative AI)",
+    ])
+    def test_the_titles_that_slipped_into_the_report_are_flagged(self, title):
+        """Bazadan olingan haqiqiy misollar — hammasi 44–62 ball bilan
+        hisobotning asosiy ro'yxatiga tushib qolgan edi."""
+        assert vacancy_filter.role_check(title)
+
+    def test_a_specific_term_wins_over_the_general_one(self):
+        """Logda "аналитик" emas, aniq sabab ko'rinsin."""
+        assert vacancy_filter.role_check("Бизнес-аналитик") == "бизнес-аналитик"
+
     def test_the_body_is_not_searched(self):
         """Haqiqiy dasturchi e'lonining matnida "отдел продаж" va "менеджер
         проекта" muntazam uchraydi — kim bilan ishlashi tasvirlanadi. Shuning
@@ -66,46 +87,87 @@ class TestRoleCheck:
 
 
 class TestPipelineRejection:
+    """Rol mos kelmasa e'lon **yo'qolmaydi** — asosiy ro'yxatdan tushadi, xolos.
+
+    Ilgari u butunlay tashlanardi. Muammosi shu edi: `role_check` xato ishlagan
+    kun hech qanday iz qoldirmasdi — vakansiya bor edi, keyin yo'q edi. Endi u
+    past ballilar ro'yxatida ko'rinadi va qo'lda tekshirilishi mumkin.
+    """
+
     def test_hh_vacancies_are_not_exempt(self, monkeypatch, vacancy):
         """hh.uz turdagi filtrdan ozod, chunki u faqat vakansiya qaytaradi.
         Lekin aynan hh.uz shu rollarni eng ko'p olib keladi — rol tekshiruvi
         undan ham o'tishi kerak."""
-        kept = _run_pipeline(monkeypatch, [
+        main_list, low = _run_pipeline(monkeypatch, [
             vacancy(url="https://hh.uz/1", title="Продукт-менеджер (SaaS)"),
             vacancy(url="https://hh.uz/2", title="Python-разработчик"),
         ])
-        assert [v["title"] for v in kept] == ["Python-разработчик"]
+        assert [v["title"] for v in main_list] == ["Python-разработчик"]
+        assert [v["title"] for v in low] == ["Продукт-менеджер (SaaS)"]
 
     def test_telegram_posts_are_checked_too(self, monkeypatch, vacancy):
-        kept = _run_pipeline(monkeypatch, [
+        main_list, low = _run_pipeline(monkeypatch, [
             vacancy(url="https://t.me/c/1", source="t.me/kanal",
                     title="Менеджер отдела B2B-продаж", text="вакансия, зарплата"),
             vacancy(url="https://t.me/c/2", source="t.me/kanal",
                     title="Python dasturchi kerak", text="vakansiya, oylik"),
         ])
-        assert [v["title"] for v in kept] == ["Python dasturchi kerak"]
+        assert [v["title"] for v in main_list] == ["Python dasturchi kerak"]
+        assert [v["title"] for v in low] == ["Менеджер отдела B2B-продаж"]
+
+    def test_the_penalty_reason_is_recorded(self, monkeypatch, vacancy):
+        """Ball nega pasayganini o'qib bo'lsin — jimgina jarima ham jimgina
+        filtr kabi yomon."""
+        _, low = _run_pipeline(monkeypatch, [
+            vacancy(url="https://hh.uz/1", title="Project Manager (IT)"),
+        ])
+        assert low[0]["score"] < config.REPORT_GOOD_SCORE
+        assert any("project manager" in r for r in low[0]["score_reasons"])
+
+    def test_a_low_score_alone_does_not_hide_a_vacancy(self, monkeypatch, vacancy):
+        """Asosiy o'zgarish: ball chegarasi yo'q. Rol filtriga tushmagan,
+        shunchaki past ballli e'lon ham ko'rinib turadi."""
+        main_list, low = _run_pipeline(monkeypatch, [
+            vacancy(url="https://hh.uz/1", title="Senior DevOps Engineer",
+                    text="kubernetes, terraform, ansible"),
+        ])
+        assert main_list == []
+        assert [v["title"] for v in low] == ["Senior DevOps Engineer"]
+
+    def test_resumes_are_still_dropped(self, monkeypatch, vacancy):
+        """Ish o'rni bo'lmagan e'lon (rezyume) boshqa masala — u ikkala
+        ro'yxatda ham ko'rinmaydi, faqat sarhisobda sanaladi."""
+        main_list, low = _run_pipeline(monkeypatch, [
+            vacancy(url="https://t.me/c/1", source="t.me/kanal",
+                    title="Ish joyi kerak", text="python bilaman, ish qidiryapman"),
+        ])
+        assert main_list == [] and low == []
 
 
 def _run_pipeline(monkeypatch, vacancies):
-    """main.run() ni soxta kollektorlar bilan ishlatib, hisobotga tushganini
-    qaytaradi."""
+    """main.run() ni soxta kollektorlar bilan ishlatib, hisobotning ikkala
+    ro'yxatini qaytaradi: (asosiy, past ballilar)."""
     import asyncio
     import reporter
     from collectors import olx, tg_channels
 
-    shown = []
+    captured = {}
     monkeypatch.setattr(hh, "collect", lambda: list(vacancies))
     monkeypatch.setattr(olx, "collect", lambda: [])
 
     async def no_tg():
         return []
 
+    def fake_report(shown, *a, low=None, **k):
+        captured["main"] = list(shown)
+        captured["low"] = list(low or [])
+        return "hisobot"
+
     monkeypatch.setattr(tg_channels, "collect", no_tg)
     monkeypatch.setattr(reporter, "send", lambda text: True)
-    monkeypatch.setattr(reporter, "build_report",
-                        lambda s, *a, **k: shown.extend(s) or "hisobot")
+    monkeypatch.setattr(reporter, "build_report", fake_report)
     asyncio.run(main.run())
-    return shown
+    return captured.get("main", []), captured.get("low", [])
 
 
 class TestDescriptionPriority:

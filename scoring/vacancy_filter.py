@@ -65,19 +65,23 @@ VACANCY_MARKERS = [
 ]
 
 
-# Dasturlash bo'lmagan rollar. Bular **faqat sarlavhada** qidiriladi va topilsa
-# e'lon butunlay rad etiladi — ball bilan pasaytirilmaydi, chunki bu ball
-# masalasi emas: menejer o'rni qanchalik yaxshi bo'lmasin, bizga kerak emas.
+# Dasturlash bo'lmagan rollar. Bular **faqat sarlavhada** qidiriladi.
 #
 # Nega faqat sarlavha: haqiqiy dasturchi vakansiyasining **matnida** "отдел
 # продаж", "менеджер проекта", "директор" so'zlari muntazam uchraydi — kimlar
 # bilan ishlashi, kimga hisobot berishi tasvirlanadi. Rol esa deyarli har doim
 # sarlavhada turadi.
 #
-# Ro'yxat ataylab tor: shubhali atamalar (masalan yolg'iz "b2b" yoki
-# "администратор") qo'shilmagan, chunki ular dasturchi sarlavhasida ham
-# uchrashi mumkin. Har bir rad etish logga aynan qaysi atama sababli
-# tashlangani bilan yoziladi — jimgina filtr eng yomon filtr.
+# Topilsa nima bo'ladi: ilgari e'lon **butunlay rad etilardi**, shuning uchun
+# ro'yxat ataylab tor edi — noto'g'ri atama butun vakansiyani jimgina yo'q
+# qilardi. Endi u faqat `config.ROLE_PENALTY` ball jarimasi: e'lon past
+# ballilar bo'limida ko'rinib turadi va qo'lda tekshirilishi mumkin. Xato
+# qimmat bo'lmagani uchun ro'yxat kengaytirildi — quyidagi ikkinchi guruh
+# aynan hisobotga o'tib ketgan haqiqiy e'lonlardan yig'ilgan.
+#
+# Tartib muhim: `role_check` birinchi mos kelgan atamani qaytaradi, shuning
+# uchun aniq atamalar ("бизнес-аналитик") umumiylaridan ("аналитик") oldin
+# turadi — logda foydali sabab ko'rinsin.
 ROLE_REJECT = [
     # rahbariyat va boshqaruv
     "директор", "руководител", "начальник", "заведующ", "head of",
@@ -99,6 +103,14 @@ ROLE_REJECT = [
     "офис-менеджер", "офис менеджер", "курьер", "консультант",
     "оператор", "колл-центр", "call-центр", "call center",
     "логист", "снабжен", "закупк", "системный администратор",
+    # --- 2026-08-07: bazadagi haqiqiy e'lonlardan yig'ilgan ikkinchi guruh.
+    # Hammasi hisobotning asosiy ro'yxatiga tushib qolgan edi (44–62 ball).
+    "аналитик", "analyst",              # Портфельный/Стажер-аналитик, Аналитик SAP
+    "преподавател", "o'qituvchi", "учител", "teacher",  # Ассистент преподавателя
+    "информационной безопасности", "кибербезопасн", "kiberxavfsizlik",
+    "governance", "compliance",         # AI Governance Specialist
+    "администратор",                    # Администратор Jira, Confluence
+    "тестировщик", "qa ", "quality assurance",
 ]
 
 

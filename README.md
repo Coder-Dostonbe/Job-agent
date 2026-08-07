@@ -242,8 +242,10 @@ the digest is sent anyway, with the warning attached.
 | `TG_CHANNELS` | Channel usernames to watch, without `@` |
 | `TG_LOOKBACK_HOURS` | How far back to read each channel |
 | `OLX_URLS` | OLX search pages to scrape |
-| `REPORT_MIN_SCORE` | Minimum keyword score to appear in the report |
-| `REPORT_LIMIT` | Maximum vacancies in one report |
+| `REPORT_GOOD_SCORE` | Score at which a vacancy earns the main list. Below it, it still appears — in the compact "low scores" section. There is no cutoff: nothing found is ever hidden |
+| `ROLE_PENALTY` | Score penalty for a non-programming role in the title. A penalty rather than a rejection, so a mis-flagged vacancy stays visible |
+| `REPORT_LIMIT` | Maximum vacancies in the main list |
+| `REPORT_LOW_LIMIT` | Maximum lines in the "low scores" section |
 | `REPORT_SOURCE_QUOTA` | Slots guaranteed to each source, so a high-volume source cannot crowd the others out. Unused slots go to whoever else scored best |
 | `AI_SCORE_THRESHOLD` / `AI_MAX_VACANCIES` | Cost control for deep AI analysis |
 | `AI_MIN_SUCCESS_RATIO` | Warn if fewer than this share of AI analyses returned a usable answer |

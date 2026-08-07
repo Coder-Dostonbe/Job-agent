@@ -84,10 +84,30 @@ TITLE_DEDUP_SOURCES = {"olx.uz"}
 # Scoring
 AI_SCORE_THRESHOLD = 55
 AI_MAX_VACANCIES = 6
-REPORT_MIN_SCORE = 40
+
+# Ball chegarasi ATAYLAB yo'q. Ilgari `REPORT_MIN_SCORE = 40` bor edi va u
+# `keyword_scorer` ning boshlang'ich bali bilan **bir xil** edi — ya'ni bironta
+# mos skill topilmagan e'lon ham aynan chegarada turardi va "api" (+4), "bot"
+# (+3) kabi zaif so'zlardan bittasi tegishi bilan hisobotga kirardi
+# (`Портфельный аналитик` 52, `Администратор Jira` 47). Teskarisi ham bo'lardi:
+# tavsifida `java`/`react` uchragan haqiqiy `Junior Programmer` 18 ball olib
+# jimgina yo'qolardi va buni hech kim sezmasdi.
+#
+# Endi chegara emas, **tartib** ishlaydi: hamma topilgan vakansiya hisobotga
+# tushadi, past ballilar esa alohida bo'limda qisqa ko'rsatiladi. Ball xato
+# qo'yilgan bo'lsa ham vakansiya ko'rinib turadi va qo'lda tekshirilishi mumkin.
+REPORT_GOOD_SCORE = 40    # shu balldan yuqorisi asosiy ro'yxatga (AI tahlili bilan),
+                          # pasti "past ballilar" bo'limiga tushadi
+
+# Rol filtri endi rad etmaydi — jarima qo'yadi. Menejer/dizayner e'loni ro'yxat
+# tubiga tushadi, lekin ko'rinib turadi: filtr xato ishlagan kun bilinsin.
+ROLE_PENALTY = -40
 
 # Hisobot ro'yxati
-REPORT_LIMIT = 20         # hisobotdagi maksimal vakansiya soni
+REPORT_LIMIT = 20         # asosiy ro'yxatdagi maksimal vakansiya soni
+REPORT_LOW_LIMIT = 30     # "past ballilar" bo'limidagi maksimal qator. Kuniga
+                          # 10–20 ta yangi e'lon keladi, ya'ni amalda hammasi
+                          # sig'adi; limit faqat g'ayrioddiy kunlar uchun.
 REPORT_SOURCE_QUOTA = 7   # har bir manbaga kafolatlangan joy. hh.uz kuniga
                           # ~90 ta e'lon beradi va to'liq tavsifi borligi uchun
                           # ball bo'yicha ham ustun keladi — kvotasiz OLX va

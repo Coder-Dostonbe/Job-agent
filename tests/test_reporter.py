@@ -56,6 +56,66 @@ class TestBuildReport:
         assert "🩺 Manbalar" in reporter.build_report([vacancy()], {}, 1, 1)
 
 
+class TestLowBlock:
+    """Past ballilar bo'limi — hisobotda ball chegarasi yo'qligining sababi."""
+
+    def test_nothing_is_rendered_when_there_is_nothing_low(self):
+        assert reporter.build_low_block([]) == []
+
+    def test_a_negative_score_keeps_its_sign(self, vacancy):
+        block = "\n".join(reporter.build_low_block(
+            [vacancy(score=-18, title="Senior DevOps Engineer")]))
+        assert "-18 · " in block
+        assert "Senior DevOps Engineer" in block
+
+    def test_a_positive_score_is_signed_too(self, vacancy):
+        """Ballar bir ustunda o'qilsin — "+12" va "-18" bir xil kenglikda."""
+        assert "+12 · " in "\n".join(reporter.build_low_block([vacancy(score=12)]))
+
+    def test_it_says_why_the_score_is_low(self, vacancy):
+        block = "\n".join(reporter.build_low_block([vacancy(
+            score=0, score_reasons=["+12 python", "-40 dasturlash emas: продаж"])]))
+        assert "dasturlash emas: продаж" in block
+
+    def test_every_entry_is_clickable(self, vacancy):
+        block = "\n".join(reporter.build_low_block(
+            [vacancy(url="https://hh.uz/7", score=-5)]))
+        assert 'href="https://hh.uz/7"' in block
+
+    def test_the_title_is_escaped(self, vacancy):
+        block = "\n".join(reporter.build_low_block(
+            [vacancy(score=-5, title="Dev <script>alert(1)</script>")]))
+        assert "<script>" not in block
+
+    def test_the_list_is_capped_and_says_how_many_are_hidden(self, vacancy, monkeypatch):
+        monkeypatch.setattr(config, "REPORT_LOW_LIMIT", 3)
+        block = "\n".join(reporter.build_low_block(
+            [vacancy(url=f"u{i}", score=-i) for i in range(10)]))
+        assert "…yana 7 ta ko'rsatilmadi" in block
+
+    def test_the_header_counts_all_of_them_not_just_the_visible(self, vacancy, monkeypatch):
+        monkeypatch.setattr(config, "REPORT_LOW_LIMIT", 2)
+        block = "\n".join(reporter.build_low_block(
+            [vacancy(url=f"u{i}", score=-i) for i in range(9)]))
+        assert "(9 ta)" in block
+
+    def test_it_is_attached_to_the_report(self, vacancy):
+        report = reporter.build_report(
+            [vacancy(score=70)], {}, 2, 1,
+            low=[vacancy(url="https://hh.uz/9", score=-30, title="Бизнес аналитик")])
+        assert "Past ballilar" in report
+        assert "Бизнес аналитик" in report
+
+    def test_the_rejected_non_jobs_are_counted_in_the_header(self, vacancy):
+        """Rezyume/xizmat e'lonlari ko'rsatilmaydi — lekin nechtasi
+        tashlangani yozilsin, aks holda filtr ortiqcha yeb qo'ysa bilinmaydi."""
+        report = reporter.build_report([vacancy()], {}, 5, 1, not_a_job=4)
+        assert "4 ta e'lon ish o'rni emas" in report
+
+    def test_no_such_line_when_nothing_was_dropped(self, vacancy):
+        assert "ish o'rni emas" not in reporter.build_report([vacancy()], {}, 1, 1)
+
+
 class TestSelect:
     def test_quota_keeps_a_loud_source_from_crowding_others_out(self, vacancy, monkeypatch):
         """hh.uz kuniga ~90 ta e'lon beradi va ballari ham yuqori — oddiy

@@ -61,4 +61,8 @@ def score(vacancy: dict) -> tuple[int, list[str]]:
         total += 5
         reasons.append("+5 python+django juftligi")
 
-    return max(0, min(100, total)), reasons
+    # Pastki chegara ataylab manfiy: ilgari `max(0, ...)` hamma yomon
+    # variantni bir xil "0" ga aylantirardi va "biroz mos emas" bilan "umuman
+    # boshqa kasb" farqlanmasdi. Endi ball qanchalik mos emasligini ham
+    # ko'rsatadi — hisobotda hammasi ko'rinadigani uchun bu tartib muhim.
+    return max(-100, min(100, total)), reasons

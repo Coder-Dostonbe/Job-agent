@@ -110,14 +110,48 @@ def build_crash_report(exc: BaseException) -> str:
     return "\n".join(lines)
 
 
+def build_low_block(low: list[dict]) -> list[str]:
+    """Past ballilar — har biri bitta qatorda.
+
+    Bu bo'lim borligi uchun hisobotda ball chegarasi yo'q: mos emas deb
+    hisoblangan e'lon ham ko'rinib turadi va qo'lda tekshirilishi mumkin.
+    Ilgari u jimgina yo'qolardi, ya'ni scorer xato qo'ygan kun bilinmasdi.
+
+    Format ataylab qisqa: sarlavha + ball + sabab + havola. To'liq blok
+    berilsa, kuniga 10–20 ta qator hisobotni o'qib bo'lmaydigan qilardi.
+    """
+    if not low:
+        return []
+    shown = low[: config.REPORT_LOW_LIMIT]
+    lines = ["", f"⚪ <b>Past ballilar</b> ({len(low)} ta) — qo'lda tekshirish uchun:"]
+    for v in shown:
+        # Eng katta bitta salbiy sabab — nima uchun pastda ekani darrov ko'rinsin
+        reasons = [r for r in v.get("score_reasons", []) if r.startswith("-")]
+        why = f" · {escape(reasons[0])}" if reasons else ""
+        lines.append(
+            f'{v["score"]:+d} · <a href="{escape(v["url"], quote=True)}">'
+            f'{escape(v["title"][:60])}</a> · {escape(source_group(v))}{why}'
+        )
+    if len(low) > len(shown):
+        lines.append(f"…yana {len(low) - len(shown)} ta ko'rsatilmadi")
+    return lines
+
+
 def build_report(shown: list[dict], stats: dict, total_new: int,
-                 total_matched: int | None = None) -> str:
-    """`shown` — ro'yxatga tushadiganlar (select natijasi),
-    `total_matched` — umuman mos kelganlar soni (undan ko'pi ko'rsatilmaydi)."""
+                 total_matched: int | None = None,
+                 low: list[dict] | None = None,
+                 not_a_job: int = 0) -> str:
+    """`shown` — asosiy ro'yxat (select natijasi),
+    `total_matched` — REPORT_GOOD_SCORE dan yuqori ball olganlar soni,
+    `low` — asosiy ro'yxatga tushmaganlar (past ballilar bo'limiga),
+    `not_a_job` — ish o'rni emas deb rad etilganlar soni (rezyume, xizmat)."""
     matched = len(shown) if total_matched is None else total_matched
     header = f"Yangi vakansiyalar: {total_new} ta, mos kelganlari: {matched} ta"
     if matched > len(shown):
         header += f" (eng yaxshi {len(shown)} tasi)"
+    if not_a_job:
+        # Bu raqamsiz filtr ortiqcha yeb qo'ygan kun bilinmaydi
+        header += f"\n{not_a_job} ta e'lon ish o'rni emas (rezyume/xizmat) — ko'rsatilmadi"
     lines = [f"📊 <b>Kunlik ish hisoboti</b>\n{header}\n"]
 
     for i, v in enumerate(shown, 1):
@@ -147,9 +181,11 @@ def build_report(shown: list[dict], stats: dict, total_new: int,
         # Uzun havola o'rniga bosiladigan matn
         lines.append(f'   <a href="{escape(v["url"], quote=True)}">🔗 Vakansiyani ko\'rish</a>\n')
 
+    lines.extend(build_low_block(low or []))
+
     if stats:
         top = ", ".join(f"{k} ({n})" for k, n in list(stats.items())[:8])
-        lines.append(f"📈 <b>Bugun eng ko'p so'ralgan skillar:</b> {top}")
+        lines.append(f"\n📈 <b>Bugun eng ko'p so'ralgan skillar:</b> {top}")
 
     diagnostics = build_health_block()
     if diagnostics:
