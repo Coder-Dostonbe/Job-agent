@@ -17,7 +17,7 @@ muammolar ro'yxatini beradi.
     kept    — kalit so'z filtridan o'tib natijaga kirgani
 Telegram uchun ikkalasi farq qiladi: kanallar o'qildi (scanned > 0), lekin
 "python/django/backend" bo'yicha hech nima mos kelmadi (kept == 0) — bu
-normal holat, ogohlantirish emas. hh.uz va OLX uchun ikkalasi teng.
+normal holat, ogohlantirish emas. hh.uz uchun ikkalasi teng.
 """
 import logging
 from dataclasses import dataclass, field

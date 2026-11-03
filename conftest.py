@@ -36,6 +36,9 @@ def isolated(tmp_path, monkeypatch):
     monkeypatch.setattr(config, "ANTHROPIC_API_KEY", "")
     monkeypatch.setattr(config, "TELEGRAM_BOT_TOKEN", "")
     monkeypatch.setattr(config, "TELEGRAM_CHAT_ID", "")
+    # Vault yo'li ham bo'shatiladi: `.env` da VAULT_PATH turgan mashinada
+    # e'tiborsiz yozilgan test haqiqiy vaultga soxta digest tashlab ketardi.
+    monkeypatch.setattr(config, "VAULT_PATH", "")
     monkeypatch.delenv("GITHUB_ACTIONS", raising=False)
     monkeypatch.setattr(requests, "post", _blocked)
     monkeypatch.setattr(requests, "get", _blocked)

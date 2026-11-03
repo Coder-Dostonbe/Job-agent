@@ -12,7 +12,8 @@ import health
 import storage
 import reporter
 import trend
-from collectors import hh, olx, tg_channels
+import vault_export
+from collectors import hh, tg_channels
 from scoring import keyword_scorer, ai_scorer, vacancy_filter, ai_filter
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(name)s] %(message)s")
@@ -70,10 +71,9 @@ def _no_vacancies_report() -> str:
 
 
 async def run():
-    # 1. YIG'ISH — uchala manba
+    # 1. YIG'ISH — ikkala manba
     vacancies = []
     vacancies += hh.collect()
-    vacancies += olx.collect()
     vacancies += await tg_channels.collect()
     log.info("Jami yig'ildi: %d", len(vacancies))
     # Nol bo'lmagan, lekin odatdagidan keskin kam natijani sezadi — dedup'dan
@@ -82,8 +82,9 @@ async def run():
     health.log_alerts()
 
     # 2. YANGILARNI AJRATISH — filtrdan OLDIN.
-    # Sabab: bir e'lon OLX'ning ikkala qidiruvida (python, django) chiqishi
-    # mumkin. Avval URL bo'yicha dedup qilsak, AI'ga ikki marta yuborilmaydi.
+    # Sabab: oldingi kunlardagi run'larda allaqachon ko'rilgan vakansiyalarni
+    # qayta AI'ga yubormaslik — aks holda har kuni bir xil e'lonlar qayta
+    # tahlil qilinardi.
     all_new = storage.filter_new(vacancies)
     log.info("Yangi (dedup'dan keyin): %d", len(all_new))
     if not all_new:
@@ -183,6 +184,11 @@ async def run():
     # ko'rsatilmasdi** — jimgina yo'qolgan kun. Endi yetkazilgani aniq bo'lgach
     # yoziladi.
     stats = storage.skill_stats(new)
+    # Vaultga yozish yuborishdan OLDIN: yozuv yiqilsa, ogohlantirish o'sha
+    # kunning hisobotiga tushsin (qarang: vault_export.py). Bu chaqiruv hech
+    # qachon istisno ko'tarmaydi.
+    vault_export.export(shown, stats, len(new), len(good),
+                        low=low, not_a_job=not_a_job)
     _deliver(reporter.build_report(shown, stats, len(new), len(good),
                                    low=low, not_a_job=not_a_job))
     storage.save(all_new)  # rad etilganlar ham — takror tekshirilmasin

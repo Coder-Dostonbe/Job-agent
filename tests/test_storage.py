@@ -152,14 +152,5 @@ class TestDedup:
         storage.save([v])
         assert storage.filter_new([v]) == []
 
-    def test_title_dedup_for_configured_sources(self, vacancy, monkeypatch):
-        """OLX'da qayta joylangan e'lon yangi URL oladi — URL dedupi uni
-        ushlamaydi, shuning uchun sarlavha ham tekshiriladi."""
-        monkeypatch.setattr(config, "TITLE_DEDUP_SOURCES", {"olx.uz"})
-        first = vacancy(source="olx.uz", url="https://olx/1", title="Python dasturchi!!!")
-        storage.save([first])
-        again = vacancy(source="olx.uz", url="https://olx/2", title="python  dasturchi")
-        assert storage.filter_new([again]) == []
-
     def test_empty_url_is_skipped(self, vacancy):
         assert storage.filter_new([vacancy(url="")]) == []

@@ -1,7 +1,7 @@
 # Job Search Agent 🤖
 
-A personal job-hunting agent. Once a day it collects vacancies from **hh.uz**,
-**OLX.uz** and **Telegram channels**, throws away everything that is not a real
+A personal job-hunting agent. Once a day it collects vacancies from **hh.uz**
+and **Telegram channels**, throws away everything that is not a real
 job opening, scores what is left against your profile (keywords + Claude), and
 sends you a single digest in Telegram.
 
@@ -13,11 +13,11 @@ and profile lives in `config.py` — point it at your own.
 ```
 collect  →  dedupe  →  is-it-a-real-vacancy?  →  score  →  report
 hh.uz       by URL     keyword rules            keyword    Telegram
-OLX.uz      + SQLite   + Claude Haiku           + Claude   message
-Telegram    history      (batched)              (top N)
+Telegram    + SQLite   + Claude Haiku           + Claude   message
+            history      (batched)              (top N)
 ```
 
-**Why the vacancy filter?** Telegram job channels and OLX are full of posts that
+**Why the vacancy filter?** Telegram job channels are full of posts that
 look like vacancies but are not: résumés from job seekers, "I'll build you a
 website" service ads, course advertising. The filter runs in two stages:
 
@@ -32,9 +32,10 @@ is kept and the scoring stage decides. The agent never stops because of AI.
 **A separate question is the role.** "Продукт-менеджер", "Директор департамента
 разработки", "Менеджер отдела B2B-продаж" are genuine vacancies — they sail
 through the filter above — but they are not programming jobs, and they were
-taking up report slots that belong to real ones. `role_check()` drops them
-outright rather than scoring them down: no product-management opening is
-interesting at any score.
+taking up report slots that belong to real ones. `role_check()` applies
+`ROLE_PENALTY` to them rather than rejecting them: they drop far below the real
+matches, but a title the term list flags by mistake stays visible with the term
+that flagged it printed next to it.
 
 It reads the **title only**. A real developer posting routinely mentions
 "отдел продаж" or "менеджер проекта" in its body, describing who you would work
@@ -71,7 +72,7 @@ exactly like a normal one.
 scraper never looks like a quiet job market:
 
 ```
-🩺 Manbalar: hh.uz 63 ✅ | olx.uz 41 ✅ | telegram 6 ✅
+🩺 Manbalar: hh.uz 63 ✅ | telegram 6 ✅
 ```
 
 If a source returns nothing without raising, fails outright, or is skipped for
@@ -87,7 +88,7 @@ from one run, so `trend.py` records each run's per-source count and compares
 today against the **median** of the last seven:
 
 ```
-🩺 Manbalar: hh.uz 6 ⚠️ | olx.uz 40 ✅ | telegram 5 ✅
+🩺 Manbalar: hh.uz 6 ⚠️ | telegram 5 ✅
 
 ⚠️ Manbalarda muammo:
 ⚠️ hh.uz: odatdagidan keskin kam: 6 ta (oxirgi 7 run medianasi — 60 ta).
@@ -145,8 +146,9 @@ cp .env.example .env    # then fill it in
 | `TG_SESSION_STRING` | See [Telegram session string](#telegram-session-string) |
 | `ANTHROPIC_API_KEY` | [console.anthropic.com](https://console.anthropic.com) — optional |
 | `DATABASE_URL` | Any hosted Postgres ([Neon](https://neon.tech), [Supabase](https://supabase.com), …) — see [History](#history) |
+| `VAULT_PATH` | Path to an Obsidian / Second Brain vault root — optional, see [Second Brain vault](#second-brain-vault-optional) |
 
-hh.uz and OLX need no credentials.
+hh.uz needs no credentials.
 
 > **Note on the hh.uz API.** `api.hh.uz` is not used. HeadHunter discontinued
 > job-seeker API support on 15 December 2025 — `GET /vacancies` now returns
@@ -214,7 +216,7 @@ That fallback is **reported, not silent**. The health line names the backend
 actually in use, and a warning spells out the consequence:
 
 ```
-🩺 Manbalar: hh.uz 64 ✅ | olx.uz 41 ✅ | storage sqlite (zaxira) ⚠️
+🩺 Manbalar: hh.uz 64 ✅ | telegram 41 ✅ | storage sqlite (zaxira) ⚠️
 
 ⚠️ Manbalarda muammo:
 ⚠️ storage: Postgres ishlamadi, SQLite'ga o'tildi (Actions'da SQLite fayli
@@ -227,12 +229,51 @@ runner's disk is wiped after every job, so history is never kept and the same
 vacancies arrive every morning. A failed *write* never costs you the report —
 the digest is sent anyway, with the warning attached.
 
+### Second Brain vault (optional)
+
+Set `VAULT_PATH` in `.env` to the root of an Obsidian / Second Brain vault and
+every run also writes the day's digest there as a Markdown source note:
+
+```
+<VAULT_PATH>/Raw/Sources/Ish bozori digesti YYYY-MM-DD.md
+```
+
+Leave it empty and nothing changes — no file, no extra line in the report.
+
+**Why a file when the report already goes to Telegram.** The report is read once
+and then buried in a chat: company names, salaries, AI verdicts and the daily
+skill counts are unsearchable within a week. And they cannot be recovered from
+the database either — `storage.py` keeps only `url, source, title, score,
+ai_score`. Company, salary, the AI's reasoning and its CV tip exist only while
+the report is being built. Those are exactly the parts worth keeping.
+
+The file is written **before** the report is delivered, deliberately: if the
+write fails, the warning lands in that same morning's report instead of in a log
+nobody reads. It is named after the date, so a second run on the same day
+updates the file rather than leaving a duplicate behind.
+
+Two things it refuses to do. It never creates the target folder — a mistyped
+path would otherwise "succeed" forever, quietly filling a directory nobody
+looks at. And it never raises: the vault is a by-product, not worth losing a
+day's report over. Both failures surface on the health line:
+
+```
+🩺 Manbalar: hh.uz 86 ✅ | telegram 35 ✅ | vault yozilmadi ⚠️
+```
+
+Vacancy titles are neutralised on the way in — `[[wikilinks]]`, leading `#`
+and `---` lines come out of a real posting often enough, and each of them means
+something in Obsidian. The text stays readable; only its syntactic power is
+removed. The note is written with `Processed: false` and stays that way: marking
+a source "compiled" before a Wiki note exists breaks the vault's central
+invariant, so that flag belongs to the vault side, not to this agent.
+
 ## Configuration (`config.py`)
 
 | Setting | Meaning |
 | --- | --- |
 | `PROFILE` | Your skills, experience and role — drives all scoring |
-| `SEARCH_QUERIES` | Search terms for hh.uz and OLX |
+| `SEARCH_QUERIES` | Search terms for hh.uz |
 | `HH_AREA_ID` | hh.uz region id (`97` = Uzbekistan) |
 | `HH_DESC_LIMIT` | How many hh.uz vacancies get their full text fetched (one request each). The most promising titles go first — see `hh._priority` |
 | `HH_DESC_MIN_RATIO` | Warn if fewer than this share of descriptions loaded — an unscored vacancy is a silently useless one |
@@ -241,7 +282,6 @@ the digest is sent anyway, with the warning attached.
 | `TREND_DROP_RATIO` / `TREND_MIN_BASELINE` | Warn below this share of the median; ignore sources that normally return fewer than this |
 | `TG_CHANNELS` | Channel usernames to watch, without `@` |
 | `TG_LOOKBACK_HOURS` | How far back to read each channel |
-| `OLX_URLS` | OLX search pages to scrape |
 | `REPORT_GOOD_SCORE` | Score at which a vacancy earns the main list. Below it, it still appears — in the compact "low scores" section. There is no cutoff: nothing found is ever hidden |
 | `ROLE_PENALTY` | Score penalty for a non-programming role in the title. A penalty rather than a rejection, so a mis-flagged vacancy stays visible |
 | `REPORT_LIMIT` | Maximum vacancies in the main list |
@@ -294,9 +334,9 @@ health.py                   per-source status + failure alerts
 trend.py                    catches partial collapses a status check cannot see
 storage.py                  Postgres/SQLite history + URL dedupe
 reporter.py                 Telegram delivery
+vault_export.py             daily digest → Second Brain vault (optional)
 create_session_qr.py        one-time Telethon session generator
 collectors/  hh.py          hh.uz search page
-             olx.py         OLX HTML scraping
              tg_channels.py Telethon channel reader
 conftest.py                 test isolation (no network, no real config)
 tests/                      pytest suite

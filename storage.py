@@ -13,7 +13,6 @@ vakansiyalarni qaytadan yuborishni boshlaydi.
 """
 import logging
 import os
-import re
 import sqlite3
 import time
 from contextlib import contextmanager
@@ -170,40 +169,21 @@ def _db(op: str = "read"):
         conn.close()
 
 
-def _title_key(source: str, title: str) -> str:
-    """Sarlavha dedupi uchun kalit. Tinish belgilari, emoji va ortiqcha
-    bo'shliqlar tashlanadi: "Python dasturchi!!!" == "python  dasturchi"."""
-    norm = re.sub(r"[^\w]+", " ", (title or "").lower(), flags=re.UNICODE).strip()
-    return f"{source}|{norm}" if norm else ""
-
-
 def filter_new(vacancies: list[dict]) -> list[dict]:
     """Faqat oldin ko'rilmagan vakansiyalarni qaytaradi (run ichida ham dedup).
 
-    Asosiy kalit — URL. `config.TITLE_DEDUP_SOURCES` dagi manbalar uchun
-    qo'shimcha ravishda sarlavha ham tekshiriladi: OLX'da bir e'lon qayta
-    joylanganda URL yangi bo'ladi, ya'ni URL dedupi uni ushlamaydi.
+    Kalit — URL.
     """
     with _db("read") as (cur, _):
-        cur.execute("SELECT url, source, title FROM vacancies")
+        cur.execute("SELECT url FROM vacancies")
         rows = cur.fetchall()
     log.info("Tarixda %d ta yozuv", len(rows))
     seen_urls = {r[0] for r in rows}
-    seen_titles = {
-        _title_key(r[1], r[2]) for r in rows
-        if r[1] in config.TITLE_DEDUP_SOURCES
-    } - {""}
 
-    new_urls, new_titles, out = set(), set(), []
+    new_urls, out = set(), []
     for v in vacancies:
         if not v["url"] or v["url"] in seen_urls or v["url"] in new_urls:
             continue
-        if v["source"] in config.TITLE_DEDUP_SOURCES:
-            key = _title_key(v["source"], v["title"])
-            if key and (key in seen_titles or key in new_titles):
-                log.info("Takror (sarlavha bo'yicha): %s", v["title"][:60])
-                continue
-            new_titles.add(key)
         new_urls.add(v["url"])
         out.append(v)
     return out

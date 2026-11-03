@@ -11,7 +11,7 @@ import health
 import main
 import reporter
 import storage
-from collectors import hh, olx, tg_channels
+from collectors import hh, tg_channels
 
 
 class TestDescriptionDegradation:
@@ -202,7 +202,6 @@ class TestDelivery:
         monkeypatch.setattr(config, "TELEGRAM_CHAT_ID", "42")
         monkeypatch.setattr(reporter, "send", lambda text: False)
         monkeypatch.setattr(hh, "collect", lambda: [vacancy(score=80)])
-        monkeypatch.setattr(olx, "collect", lambda: [])
 
         async def no_tg():
             return []
@@ -219,7 +218,6 @@ class TestDelivery:
         monkeypatch.setattr(config, "TELEGRAM_CHAT_ID", "42")
         monkeypatch.setattr(reporter, "send", lambda text: True)
         monkeypatch.setattr(hh, "collect", lambda: [vacancy(score=80)])
-        monkeypatch.setattr(olx, "collect", lambda: [])
 
         async def no_tg():
             return []

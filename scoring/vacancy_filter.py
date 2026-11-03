@@ -1,6 +1,6 @@
 """E'lon turini ajratish: haqiqiy vakansiyami yoki ish izlovchi / xizmat taklifi.
 
-Muammo: Telegram kanallarda (ayniqsa UstozShogird) va OLX'da ish beruvchilar
+Muammo: Telegram kanallarda (ayniqsa UstozShogird) ish beruvchilar
 vakansiyalari bilan birga ish izlovchilarning rezyumelari va "sayt/bot yasab
 beraman" kabi xizmat takliflari ham chiqadi. Bizga faqat ish o'rinlari kerak.
 

@@ -149,11 +149,10 @@ def _run_pipeline(monkeypatch, vacancies):
     ro'yxatini qaytaradi: (asosiy, past ballilar)."""
     import asyncio
     import reporter
-    from collectors import olx, tg_channels
+    from collectors import tg_channels
 
     captured = {}
     monkeypatch.setattr(hh, "collect", lambda: list(vacancies))
-    monkeypatch.setattr(olx, "collect", lambda: [])
 
     async def no_tg():
         return []

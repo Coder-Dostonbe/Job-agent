@@ -119,13 +119,13 @@ class TestLowBlock:
 class TestSelect:
     def test_quota_keeps_a_loud_source_from_crowding_others_out(self, vacancy, monkeypatch):
         """hh.uz kuniga ~90 ta e'lon beradi va ballari ham yuqori — oddiy
-        "eng yaxshi N ta" ro'yxatda OLX va Telegram umuman ko'rinmay qolardi."""
+        "eng yaxshi N ta" ro'yxatda Telegram umuman ko'rinmay qolardi."""
         monkeypatch.setattr(config, "REPORT_SOURCE_QUOTA", 2)
         monkeypatch.setattr(config, "REPORT_LIMIT", 4)
         scored = [vacancy(source="hh.uz", score=90 - i, url=f"h{i}") for i in range(5)]
-        scored += [vacancy(source="olx.uz", score=50, url="o1")]
+        scored += [vacancy(source="t.me/kanal", score=50, url="o1")]
         picked = reporter.select(scored)
-        assert sum(1 for v in picked if v["source"] == "olx.uz") == 1
+        assert sum(1 for v in picked if v["source"] == "t.me/kanal") == 1
 
     def test_telegram_channels_count_as_one_source(self, vacancy):
         assert reporter.source_group(vacancy(source="t.me/python_jobs_uz")) == "telegram"

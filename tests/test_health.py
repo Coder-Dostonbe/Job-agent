@@ -36,9 +36,9 @@ def test_partial_failure_is_degraded():
 
 
 def test_total_failure():
-    health.expect("olx.uz")
-    health.error("olx.uz", "timeout")
-    assert health._entry("olx.uz").status == "failed"
+    health.expect("telegram")
+    health.error("telegram", "timeout")
+    assert health._entry("telegram").status == "failed"
     assert health.alerts()[0].startswith("❌")
 
 

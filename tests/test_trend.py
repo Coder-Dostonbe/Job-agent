@@ -58,15 +58,15 @@ class TestCheck:
         assert trend.check({"telegram": [4, 3, 5, 4]}, {"telegram": 1}) == []
 
     def test_a_big_source_dropping_to_zero_is_caught(self):
-        found = trend.check({"olx.uz": [41, 38, 40]}, {"olx.uz": 0})
+        found = trend.check({"telegram": [41, 38, 40]}, {"telegram": 0})
         assert len(found) == 1
 
     def test_each_source_is_judged_separately(self):
         found = trend.check(
-            {"hh.uz": [63, 60, 58], "olx.uz": [41, 38, 40]},
-            {"hh.uz": 61, "olx.uz": 3},
+            {"hh.uz": [63, 60, 58], "telegram": [41, 38, 40]},
+            {"hh.uz": 61, "telegram": 3},
         )
-        assert [s for s, _ in found] == ["olx.uz"]
+        assert [s for s, _ in found] == ["telegram"]
 
 
 class TestHealthIntegration:
@@ -103,11 +103,11 @@ class TestHealthIntegration:
 
 class TestStorageRoundTrip:
     def test_counts_survive_to_the_next_run(self):
-        storage.record_counts({"hh.uz": 63, "olx.uz": 41})
-        storage.record_counts({"hh.uz": 60, "olx.uz": 38})
+        storage.record_counts({"hh.uz": 63, "telegram": 41})
+        storage.record_counts({"hh.uz": 60, "telegram": 38})
         history = storage.recent_counts(7)
         assert sorted(history["hh.uz"]) == [60, 63]
-        assert sorted(history["olx.uz"]) == [38, 41]
+        assert sorted(history["telegram"]) == [38, 41]
 
     def test_the_window_is_limited(self):
         for n in range(10):

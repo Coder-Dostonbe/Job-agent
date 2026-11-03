@@ -42,8 +42,8 @@ def select(scored: list[dict]) -> list[dict]:
     """Hisobotga tushadigan vakansiyalarni tanlaydi.
 
     hh.uz kuniga ~90 ta e'lon beradi va tavsifi to'liq bo'lgani uchun ball
-    bo'yicha ham yuqori chiqadi — oddiy "eng yuqori N ta" ro'yxatda OLX va
-    Telegram umuman ko'rinmay qoladi. Shuning uchun avval har bir manbaga
+    bo'yicha ham yuqori chiqadi — oddiy "eng yuqori N ta" ro'yxatda Telegram
+    umuman ko'rinmay qoladi. Shuning uchun avval har bir manbaga
     kvota beriladi; kvota to'lmay qolgan joylar esa qolgan eng yaxshi
     vakansiyalarga o'tadi. Umumiy chegara — REPORT_LIMIT.
 
