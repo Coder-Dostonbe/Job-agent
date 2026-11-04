@@ -142,8 +142,6 @@ cp .env.example .env    # then fill it in
 | --- | --- |
 | `TELEGRAM_BOT_TOKEN` | Create a bot with [@BotFather](https://t.me/BotFather) |
 | `TELEGRAM_CHAT_ID` | Message your bot, then open `https://api.telegram.org/bot<TOKEN>/getUpdates` and read `chat.id` |
-| `TG_API_ID`, `TG_API_HASH` | [my.telegram.org](https://my.telegram.org) → API development tools |
-| `TG_SESSION_STRING` | See [Telegram session string](#telegram-session-string) |
 | `ANTHROPIC_API_KEY` | [console.anthropic.com](https://console.anthropic.com) — optional |
 | `DATABASE_URL` | Any hosted Postgres ([Neon](https://neon.tech), [Supabase](https://supabase.com), …) — see [History](#history) |
 | `VAULT_PATH` | Path to an Obsidian / Second Brain vault root — optional, see [Second Brain vault](#second-brain-vault-optional) |
@@ -156,26 +154,12 @@ hh.uz needs no credentials.
 > registered by employers. The collector reads the public search page instead
 > (see `collectors/hh.py`).
 
-### Telegram session string
+### Telegram channels
 
-Reading public channels requires a **user** session, not a bot token — the Bot
-API cannot read channels you do not own. Generate one once:
-
-```bash
-python create_session_qr.py
-```
-
-A QR code appears in your terminal. In the Telegram mobile app go to
-**Settings → Devices → Link Desktop Device** and scan it. The script prints a
-session string.
-
-> ⚠️ That string is full access to your Telegram account — stronger than your
-> password. Put it straight into `.env` or GitHub Secrets. Never paste it into a
-> chat, an issue, or a commit. If it leaks, revoke it under Settings → Devices.
-
-QR login is used instead of the usual phone-number flow because SMS and in-app
-codes are unreliable on some networks. Without a session string the agent still
-runs — it just skips the Telegram sources.
+Channels are read through their public `https://t.me/s/<username>` preview
+page — no login, session or API key needed. Only fully public channels with
+that preview enabled work; before adding one to `TG_CHANNELS`, check that the
+URL opens and shows recent posts.
 
 ## Running it
 
@@ -298,8 +282,7 @@ and can also be triggered by hand from the Actions tab.
 
 1. Push the repo to GitHub.
 2. **Settings → Secrets and variables → Actions** → add `TELEGRAM_BOT_TOKEN`,
-   `TELEGRAM_CHAT_ID`, `TG_API_ID`, `TG_API_HASH`, `TG_SESSION_STRING`,
-   `DATABASE_URL`, and `ANTHROPIC_API_KEY`.
+   `TELEGRAM_CHAT_ID`, `DATABASE_URL`, and `ANTHROPIC_API_KEY`.
 3. Adjust the `cron:` line if you want a different time.
 
 If a run fails at any stage you get a Telegram message with the reason and a
@@ -335,9 +318,8 @@ trend.py                    catches partial collapses a status check cannot see
 storage.py                  Postgres/SQLite history + URL dedupe
 reporter.py                 Telegram delivery
 vault_export.py             daily digest → Second Brain vault (optional)
-create_session_qr.py        one-time Telethon session generator
 collectors/  hh.py          hh.uz search page
-             tg_channels.py Telethon channel reader
+             tg_channels.py public t.me/s/ channel reader
 conftest.py                 test isolation (no network, no real config)
 tests/                      pytest suite
 scoring/     vacancy_filter.py  stage 1 — keyword rules + role rejection
@@ -349,6 +331,6 @@ scoring/     vacancy_filter.py  stage 1 — keyword rules + role rejection
 
 ## Notes
 
-- `*.session` files and `.env` are gitignored. Keep them that way.
+- `.env` is gitignored. Keep it that way.
 - If a source fails (network, rate limit, a channel that no longer exists) the
   agent logs it and carries on with the rest.

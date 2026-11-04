@@ -202,11 +202,7 @@ class TestDelivery:
         monkeypatch.setattr(config, "TELEGRAM_CHAT_ID", "42")
         monkeypatch.setattr(reporter, "send", lambda text: False)
         monkeypatch.setattr(hh, "collect", lambda: [vacancy(score=80)])
-
-        async def no_tg():
-            return []
-
-        monkeypatch.setattr(tg_channels, "collect", no_tg)
+        monkeypatch.setattr(tg_channels, "collect", lambda: [])
 
         with pytest.raises(RuntimeError):
             main.main()
@@ -218,11 +214,7 @@ class TestDelivery:
         monkeypatch.setattr(config, "TELEGRAM_CHAT_ID", "42")
         monkeypatch.setattr(reporter, "send", lambda text: True)
         monkeypatch.setattr(hh, "collect", lambda: [vacancy(score=80)])
-
-        async def no_tg():
-            return []
-
-        monkeypatch.setattr(tg_channels, "collect", no_tg)
+        monkeypatch.setattr(tg_channels, "collect", lambda: [])
 
         main.main()
         assert storage.filter_new([vacancy(score=80)]) == []

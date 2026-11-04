@@ -180,7 +180,7 @@ class TestCheckAndRecord:
         """Telegram sozlanmagan bo'lsa 0 yozish chiziqni nolga tushiradi va
         keyinchalik haqiqiy pasayish sezilmay qoladi."""
         health.expect("telegram")
-        health.skipped("telegram", "TG_API_ID yo'q")
+        health.skipped("telegram", "TG_CHANNELS sozlanmagan")
         trend.check_and_record()
         assert "telegram" not in storage.recent_counts(7)
 

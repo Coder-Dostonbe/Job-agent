@@ -154,15 +154,12 @@ def _run_pipeline(monkeypatch, vacancies):
     captured = {}
     monkeypatch.setattr(hh, "collect", lambda: list(vacancies))
 
-    async def no_tg():
-        return []
-
     def fake_report(shown, *a, low=None, **k):
         captured["main"] = list(shown)
         captured["low"] = list(low or [])
         return "hisobot"
 
-    monkeypatch.setattr(tg_channels, "collect", no_tg)
+    monkeypatch.setattr(tg_channels, "collect", lambda: [])
     monkeypatch.setattr(reporter, "send", lambda text: True)
     monkeypatch.setattr(reporter, "build_report", fake_report)
     asyncio.run(main.run())

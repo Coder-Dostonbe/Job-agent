@@ -8,11 +8,6 @@ __pycache__/
 *.pyd
 .Python
 
-# Telethon session files — akkaunt kaliti, HECH QACHON commit qilinmasin
-# (GitHub Actions TG_SESSION_STRING secret'dan foydalanadi)
-*.session
-*.session-journal
-
 # Yiqilish belgisi — main.py qoldiradi, workflow o'qiydi (vaqtinchalik)
 .crash-notified
 

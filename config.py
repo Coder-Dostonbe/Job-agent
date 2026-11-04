@@ -111,8 +111,6 @@ AI_FILTER_MAX_POSTS = 150     # kuniga AI'ga yuboriladigan maksimal e'lon
 # ============ MAXFIY KALITLAR (.env yoki GitHub Secrets) ============
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
 TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", "")
-TG_API_ID = os.getenv("TG_API_ID", "")
-TG_API_HASH = os.getenv("TG_API_HASH", "")
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
 # Vakansiyalar tarixi. DATABASE_URL bo'lsa PostgreSQL, aks holda lokal SQLite.
 # GitHub Actions har run'da toza mashina beradi — fayl saqlanmaydi, shuning
@@ -138,5 +136,3 @@ TREND_HISTORY_RUNS = 7   # bazaviy chiziq necha oxirgi run'dan olinadi
 TREND_MIN_RUNS = 3       # shundan kam tarix bo'lsa taqqoslanmaydi
 TREND_DROP_RATIO = 0.5   # medianadan shu ulushdan past bo'lsa — ogohlantirish
 TREND_MIN_BASELINE = 8   # kam natijali manbalarda tebranish normal, jim turamiz
-# Telethon string session (GitHub Actions uchun — phone auth kerak emas)
-TG_SESSION_STRING = os.getenv("TG_SESSION_STRING", "")

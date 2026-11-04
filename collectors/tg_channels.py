@@ -1,12 +1,15 @@
-"""Telegram ish kanallaridan postlarni o'qish (Telethon, user-akkaunt orqali).
+"""Telegram ish kanallaridan postlarni o'qish (ochiq t.me/s/ ko'rinishi).
 
-GitHub Actions uchun: TG_SESSION_STRING env var orqali string session ishlatiladi.
-Local uchun: 'agent.session' fayli ishlatiladi.
-Session yaratish: python create_session_qr.py
+Login, sessiya yoki API kalit kerak emas — har bir to'liq ochiq (public)
+kanalning web-preview sahifasi (`https://t.me/s/<username>`) orqali o'qiladi.
+Yangi kanal qo'shishdan oldin tekshiring: shu manzil ochilishi va oxirgi
+posti yaqin kunlarda bo'lishi kerak.
 """
 import logging
-import os
 from datetime import datetime, timedelta, timezone
+
+import requests
+from bs4 import BeautifulSoup
 
 import config
 import health
@@ -16,82 +19,95 @@ log = logging.getLogger("tg")
 SOURCE = "telegram"  # `reporter.source_group` bilan bir xil nom
 KEYWORDS = ["python", "django", "backend", "бэкенд", "бекенд"]
 
+HEADERS = {"User-Agent": "Mozilla/5.0 (compatible; job-agent/1.0)"}
+MAX_PAGES = 5  # kanal juda faol bo'lsa ham cheksiz orqaga tushib ketmasin
 
-async def collect() -> list[dict]:
+
+def _parse_page(html: str) -> list[dict]:
+    """Bitta `t.me/s/...` sahifasidagi postlarni ajratib oladi."""
+    soup = BeautifulSoup(html, "html.parser")
+    posts = []
+    for wrap in soup.select(".tgme_widget_message_wrap"):
+        post_div = wrap.select_one("[data-post]")
+        time_el = wrap.select_one("time")
+        if not post_div or not time_el or not time_el.get("datetime"):
+            continue
+        text_el = wrap.select_one(".tgme_widget_message_text")
+        posts.append({
+            "post_id": post_div["data-post"],  # "kanal/12345"
+            "published": datetime.fromisoformat(time_el["datetime"]),
+            "text": text_el.get_text("\n").strip() if text_el else "",
+        })
+    return posts
+
+
+def _fetch_channel(channel: str, since: datetime) -> list[dict]:
+    """Kanalni o'qiydi; eng eski post `since`dan oldin bo'lguncha orqaga
+    sahifalaydi (bitta sahifa — so'nggi ~20 post)."""
+    all_posts: list[dict] = []
+    before = None
+    for _ in range(MAX_PAGES):
+        url = f"https://t.me/s/{channel}"
+        if before:
+            url += f"?before={before}"
+        resp = requests.get(url, headers=HEADERS, timeout=15)
+        resp.raise_for_status()
+        posts = _parse_page(resp.text)
+        if not posts:
+            break
+        all_posts.extend(posts)
+        oldest = min(posts, key=lambda p: p["published"])
+        if oldest["published"] < since:
+            break
+        before = oldest["post_id"].rsplit("/", 1)[-1]
+    return all_posts
+
+
+def collect() -> list[dict]:
     health.expect(SOURCE)
-    if not (config.TG_API_ID and config.TG_API_HASH):
-        log.warning("TG_API_ID/TG_API_HASH yo'q — Telegram collector o'tkazib yuborildi")
-        health.skipped(SOURCE, "TG_API_ID/TG_API_HASH sozlanmagan")
+    if not config.TG_CHANNELS:
+        log.warning("TG_CHANNELS bo'sh — Telegram kanallar o'tkazib yuborildi")
+        health.skipped(SOURCE, "TG_CHANNELS sozlanmagan")
         return []
 
-    # Session mavjudligini tekshir
-    has_string_session = bool(getattr(config, 'TG_SESSION_STRING', ''))
-    has_session_file = os.path.exists("agent.session")
-
-    if not has_string_session and not has_session_file:
-        log.warning(
-            "Telethon session yo'q (agent.session ham, TG_SESSION_STRING ham). "
-            "Telegram kanallar o'tkazib yuborildi."
-        )
-        health.skipped(
-            SOURCE, "Telethon session yo'q (agent.session ham, TG_SESSION_STRING ham)"
-        )
-        return []
-
-    from telethon import TelegramClient
-    from telethon.sessions import StringSession
-
-    results = []
     since = datetime.now(timezone.utc) - timedelta(hours=config.TG_LOOKBACK_HOURS)
-
-    if has_string_session:
-        session = StringSession(config.TG_SESSION_STRING)
-    else:
-        session = "agent"
-
+    results = []
     scanned, silent = 0, []
-    try:
-        async with TelegramClient(
-            session, int(config.TG_API_ID), config.TG_API_HASH
-        ) as client:
-            for channel in config.TG_CHANNELS:
-                channel_posts = 0
-                try:
-                    async for msg in client.iter_messages(channel, limit=80):
-                        if msg.date < since:
-                            break
-                        channel_posts += 1
-                        text = (msg.text or "").strip()
-                        low = text.lower()
-                        if text and any(k in low for k in KEYWORDS):
-                            results.append({
-                                "source": f"t.me/{channel}",
-                                "url": f"https://t.me/{channel}/{msg.id}",
-                                "title": text.split("\n")[0][:90],
-                                "company": "",
-                                "salary": "",
-                                "experience": "",
-                                "text": text[:1500],
-                                "published_at": msg.date.isoformat(),
-                            })
-                except Exception as e:
-                    log.error("Kanal o'qishda xato (%s): %s", channel, e)
-                    health.error(SOURCE, f"@{channel}: {e}")
-                    continue
-                scanned += channel_posts
-                if not channel_posts:
-                    silent.append(channel)
-    except Exception as e:
-        # Sessiya eskirgan / bekor qilingan, tarmoq yiqilgan va h.k.
-        # Ilgari bu butun agentni yiqitardi — endi faqat shu manba yo'qoladi.
-        log.error("Telegram'ga ulanib bo'lmadi: %s", e)
-        health.error(SOURCE, f"ulanib bo'lmadi: {e}")
-        return results
+
+    for channel in config.TG_CHANNELS:
+        try:
+            posts = _fetch_channel(channel, since)
+        except Exception as e:
+            log.error("Kanal o'qishda xato (%s): %s", channel, e)
+            health.error(SOURCE, f"@{channel}: {e}")
+            continue
+
+        channel_posts = 0
+        for p in posts:
+            if p["published"] < since:
+                continue
+            channel_posts += 1
+            text = p["text"]
+            low = text.lower()
+            if text and any(k in low for k in KEYWORDS):
+                chan, msg_id = p["post_id"].split("/", 1)
+                results.append({
+                    "source": f"t.me/{chan}",
+                    "url": f"https://t.me/{chan}/{msg_id}",
+                    "title": text.split("\n")[0][:90],
+                    "company": "",
+                    "salary": "",
+                    "experience": "",
+                    "text": text[:1500],
+                    "published_at": p["published"].isoformat(),
+                })
+        scanned += channel_posts
+        if not channel_posts:
+            silent.append(channel)
 
     if silent:
         # Kanal o'qildi, lekin oxirgi TG_LOOKBACK_HOURS soatda bironta post yo'q.
-        # Bir-ikkitasi normal; hammasi jim bo'lsa — sessiya yoki kanallar bilan
-        # muammo bor (qarang HOLAT.md: `python_jobs_uz` bir yil jim edi).
+        # Bir-ikkitasi normal; hammasi jim bo'lsa — kanal ro'yxati bilan muammo bor.
         log.info("Postsiz kanallar (%d/%d): %s",
                  len(silent), len(config.TG_CHANNELS), ", ".join(silent))
         if len(silent) == len(config.TG_CHANNELS):

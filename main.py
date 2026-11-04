@@ -74,7 +74,7 @@ async def run():
     # 1. YIG'ISH — ikkala manba
     vacancies = []
     vacancies += hh.collect()
-    vacancies += await tg_channels.collect()
+    vacancies += tg_channels.collect()
     log.info("Jami yig'ildi: %d", len(vacancies))
     # Nol bo'lmagan, lekin odatdagidan keskin kam natijani sezadi — dedup'dan
     # oldin, chunki taqqoslash manbaning xom qaytarganiga qarab bo'lishi kerak

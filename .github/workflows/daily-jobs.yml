@@ -35,10 +35,7 @@ jobs:
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-          TG_API_ID: ${{ secrets.TG_API_ID }}
-          TG_API_HASH: ${{ secrets.TG_API_HASH }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-          TG_SESSION_STRING: ${{ secrets.TG_SESSION_STRING }}
           # Runner har safar toza mashina — tarix Postgres'da saqlanadi
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
         run: python main.py
